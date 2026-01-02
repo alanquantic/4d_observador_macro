@@ -8,7 +8,7 @@ import { Link3D } from './Link3D';
 import { Grid3D } from './Grid3D';
 import { Particles3D } from './Particles3D';
 import { Card } from '@/components/ui/card';
-import { X, Filter, Eye, EyeOff, Layers, Target, Sparkles, Users, Briefcase, Heart, Lightbulb } from 'lucide-react';
+import { X, Filter, Eye, Layers, Target, Sparkles, Users, Briefcase, Lightbulb, Loader2, RefreshCw, AlertCircle } from 'lucide-react';
 
 interface NodeData {
   id: string;
@@ -20,12 +20,36 @@ interface NodeData {
   label: string;
   color: string;
   type: string;
+  metadata?: Record<string, any>;
 }
 
 interface LinkData {
   source: string;
   target: string;
   strength: number;
+}
+
+interface APIResponse {
+  success: boolean;
+  nodes: NodeData[];
+  links: LinkData[];
+  stats: {
+    total: number;
+    avgEnergy: number;
+    connections: number;
+    breakdown?: {
+      projects: number;
+      relationships: number;
+      intentions: number;
+      manifestations: number;
+    };
+    coherence?: {
+      overall: number;
+      emotional: number;
+      logical: number;
+      energetic: number;
+    };
+  };
 }
 
 const NODE_TYPES = [
@@ -35,6 +59,40 @@ const NODE_TYPES = [
   { id: 'relationship', label: 'Relaciones', icon: Users, color: '#ffaa00' },
   { id: 'intention', label: 'Intenciones', icon: Lightbulb, color: '#00ff88' },
   { id: 'manifestation', label: 'Manifestaciones', icon: Sparkles, color: '#ff0088' },
+];
+
+// Datos de ejemplo cuando no hay datos o no está autenticado
+const EXAMPLE_NODES: NodeData[] = [
+  { id: 'observer', x: 0, y: 0, z: 54, size: 3.5, energy: 1.0, label: 'Observador 4D', color: '#00ffff', type: 'self' },
+  { id: 'work', x: 25, y: -15, z: 36, size: 2.4, energy: 0.85, label: 'Proyecto Principal', color: '#ff00ff', type: 'project' },
+  { id: 'business', x: -20, y: 25, z: 24, size: 2.0, energy: 0.72, label: 'Emprendimiento', color: '#ff44aa', type: 'project' },
+  { id: 'creativity', x: 30, y: 20, z: 15, size: 1.8, energy: 0.65, label: 'Creatividad', color: '#ff0088', type: 'project' },
+  { id: 'family', x: -25, y: -20, z: 42, size: 2.6, energy: 0.92, label: 'Familia', color: '#ffaa00', type: 'relationship' },
+  { id: 'partner', x: -15, y: -30, z: 48, size: 2.8, energy: 0.95, label: 'Pareja', color: '#ff6600', type: 'relationship' },
+  { id: 'friends', x: 15, y: -25, z: 27, size: 2.0, energy: 0.78, label: 'Amistades', color: '#ffcc00', type: 'relationship' },
+  { id: 'health', x: -30, y: 10, z: 18, size: 2.0, energy: 0.70, label: 'Salud Óptima', color: '#00ff88', type: 'intention' },
+  { id: 'learning', x: 20, y: 30, z: 30, size: 1.9, energy: 0.75, label: 'Aprendizaje', color: '#44ff88', type: 'intention' },
+  { id: 'peace', x: -10, y: 35, z: 33, size: 2.2, energy: 0.82, label: 'Paz Interior', color: '#00ffaa', type: 'intention' },
+  { id: 'abundance', x: 35, y: 5, z: 21, size: 2.1, energy: 0.68, label: 'Abundancia', color: '#ff0088', type: 'manifestation' },
+  { id: 'purpose', x: -5, y: -35, z: 39, size: 2.3, energy: 0.88, label: 'Propósito de Vida', color: '#ff44cc', type: 'manifestation' },
+];
+
+const EXAMPLE_LINKS: LinkData[] = [
+  { source: 'observer', target: 'work', strength: 0.9 },
+  { source: 'observer', target: 'family', strength: 0.95 },
+  { source: 'observer', target: 'partner', strength: 0.98 },
+  { source: 'observer', target: 'health', strength: 0.8 },
+  { source: 'observer', target: 'peace', strength: 0.85 },
+  { source: 'observer', target: 'purpose', strength: 0.92 },
+  { source: 'work', target: 'creativity', strength: 0.7 },
+  { source: 'work', target: 'business', strength: 0.75 },
+  { source: 'business', target: 'abundance', strength: 0.65 },
+  { source: 'family', target: 'partner', strength: 0.88 },
+  { source: 'family', target: 'friends', strength: 0.6 },
+  { source: 'health', target: 'peace', strength: 0.72 },
+  { source: 'learning', target: 'creativity', strength: 0.68 },
+  { source: 'purpose', target: 'abundance', strength: 0.58 },
+  { source: 'peace', target: 'purpose', strength: 0.78 },
 ];
 
 function Scene3D() {
@@ -48,7 +106,12 @@ function Scene3D() {
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
   const [nodesData, setNodesData] = useState<NodeData[]>([]);
+  const [linksData, setLinksData] = useState<LinkData[]>([]);
   const [stats, setStats] = useState({ total: 0, avgEnergy: 0, connections: 0 });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [usingRealData, setUsingRealData] = useState(false);
+  const [breakdown, setBreakdown] = useState<Record<string, number>>({});
 
   // Calcular centro de los nodos para centrar la cámara
   const calculateCenter = useCallback((nodes: NodeData[]) => {
@@ -56,8 +119,76 @@ function Scene3D() {
     const sumX = nodes.reduce((acc, n) => acc + n.x, 0) / nodes.length;
     const sumY = nodes.reduce((acc, n) => acc + n.y, 0) / nodes.length;
     const sumZ = nodes.reduce((acc, n) => acc + n.z, 0) / nodes.length;
-    return new BABYLON.Vector3(sumX, sumZ / 2, sumY); // Y y Z intercambiados por la perspectiva
+    return new BABYLON.Vector3(sumX, sumZ / 2, sumY);
   }, []);
+
+  // Cargar datos desde la API
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/tablero-3d');
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          // No autenticado, usar datos de ejemplo
+          console.log('Usuario no autenticado, usando datos de ejemplo');
+          setNodesData(EXAMPLE_NODES);
+          setLinksData(EXAMPLE_LINKS);
+          setStats({ 
+            total: EXAMPLE_NODES.length, 
+            avgEnergy: Math.round(EXAMPLE_NODES.reduce((a, n) => a + n.energy, 0) / EXAMPLE_NODES.length * 100),
+            connections: EXAMPLE_LINKS.length 
+          });
+          setUsingRealData(false);
+          return;
+        }
+        throw new Error('Error al cargar datos');
+      }
+
+      const data: APIResponse = await response.json();
+      
+      if (data.success && data.nodes.length > 0) {
+        setNodesData(data.nodes);
+        setLinksData(data.links);
+        setStats(data.stats);
+        setUsingRealData(true);
+        if (data.stats.breakdown) {
+          setBreakdown(data.stats.breakdown);
+        }
+      } else {
+        // Si no hay datos reales, usar datos de ejemplo
+        setNodesData(EXAMPLE_NODES);
+        setLinksData(EXAMPLE_LINKS);
+        setStats({ 
+          total: EXAMPLE_NODES.length, 
+          avgEnergy: Math.round(EXAMPLE_NODES.reduce((a, n) => a + n.energy, 0) / EXAMPLE_NODES.length * 100),
+          connections: EXAMPLE_LINKS.length 
+        });
+        setUsingRealData(false);
+      }
+    } catch (err) {
+      console.error('Error cargando datos:', err);
+      // Usar datos de ejemplo en caso de error
+      setNodesData(EXAMPLE_NODES);
+      setLinksData(EXAMPLE_LINKS);
+      setStats({ 
+        total: EXAMPLE_NODES.length, 
+        avgEnergy: Math.round(EXAMPLE_NODES.reduce((a, n) => a + n.energy, 0) / EXAMPLE_NODES.length * 100),
+        connections: EXAMPLE_LINKS.length 
+      });
+      setUsingRealData(false);
+      setError('Usando datos de ejemplo');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Cargar datos al montar
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   // Listen for zoom events from parent
   useEffect(() => {
@@ -98,7 +229,7 @@ function Scene3D() {
   }, [activeFilter, nodesData]);
 
   useEffect(() => {
-    if (!canvasRef.current) return;
+    if (!canvasRef.current || loading || nodesData.length === 0) return;
 
     // Si ya hay una escena, limpiarla
     if (engineRef.current) {
@@ -120,21 +251,21 @@ function Scene3D() {
     // Cámara con vista isométrica más abierta y centrada
     const camera = new BABYLON.ArcRotateCamera(
       'camera',
-      Math.PI / 4,     // Ángulo diagonal para mejor perspectiva
-      Math.PI / 3,     // Inclinación más pronunciada (60 grados desde arriba)
-      150,             // MAYOR distancia inicial para ver todo
-      new BABYLON.Vector3(0, 20, 0), // Centro elevado
+      Math.PI / 4,
+      Math.PI / 3,
+      150,
+      new BABYLON.Vector3(0, 20, 0),
       scene
     );
     camera.lowerRadiusLimit = 30;
-    camera.upperRadiusLimit = 250; // Permite zoom out mucho más extenso
+    camera.upperRadiusLimit = 250;
     camera.lowerBetaLimit = 0.2;
     camera.upperBetaLimit = Math.PI / 2.2;
-    camera.fov = 0.6; // FOV más amplio para mejor visión
+    camera.fov = 0.6;
     camera.attachControl(canvasRef.current, true);
-    camera.wheelPrecision = 15; // Más sensible para el zoom
-    camera.panningSensibility = 30; // Pan más rápido
-    camera.inertia = 0.7; // Inercia suave
+    camera.wheelPrecision = 15;
+    camera.panningSensibility = 30;
+    camera.inertia = 0.7;
     cameraRef.current = camera;
 
     // Luz cenital suave
@@ -165,179 +296,14 @@ function Scene3D() {
     // Crear grid 3D holográfico
     Grid3D.create(scene);
 
-    // Datos de ejemplo más distribuidos y variados
-    const baseHeightMultiplier = debugMode ? 6 : 3;
-    const nodes: NodeData[] = [
-      // Centro - Observador
-      {
-        id: 'observer',
-        x: 0,
-        y: 0,
-        z: 18 * baseHeightMultiplier,
-        size: 3.5,
-        energy: 1.0,
-        label: 'Observador 4D',
-        color: '#00ffff',
-        type: 'self',
-      },
-      // Proyectos - Dispersos en distintas posiciones
-      {
-        id: 'work',
-        x: 25,
-        y: -15,
-        z: 12 * baseHeightMultiplier,
-        size: 2.4,
-        energy: 0.85,
-        label: 'Proyecto Principal',
-        color: '#ff00ff',
-        type: 'project',
-      },
-      {
-        id: 'business',
-        x: -20,
-        y: 25,
-        z: 8 * baseHeightMultiplier,
-        size: 2.0,
-        energy: 0.72,
-        label: 'Emprendimiento',
-        color: '#ff44aa',
-        type: 'project',
-      },
-      {
-        id: 'creativity',
-        x: 30,
-        y: 20,
-        z: 5 * baseHeightMultiplier,
-        size: 1.8,
-        energy: 0.65,
-        label: 'Creatividad',
-        color: '#ff0088',
-        type: 'project',
-      },
-      // Relaciones - Cuadrante diferente
-      {
-        id: 'family',
-        x: -25,
-        y: -20,
-        z: 14 * baseHeightMultiplier,
-        size: 2.6,
-        energy: 0.92,
-        label: 'Familia',
-        color: '#ffaa00',
-        type: 'relationship',
-      },
-      {
-        id: 'partner',
-        x: -15,
-        y: -30,
-        z: 16 * baseHeightMultiplier,
-        size: 2.8,
-        energy: 0.95,
-        label: 'Pareja',
-        color: '#ff6600',
-        type: 'relationship',
-      },
-      {
-        id: 'friends',
-        x: 15,
-        y: -25,
-        z: 9 * baseHeightMultiplier,
-        size: 2.0,
-        energy: 0.78,
-        label: 'Amistades',
-        color: '#ffcc00',
-        type: 'relationship',
-      },
-      // Intenciones
-      {
-        id: 'health',
-        x: -30,
-        y: 10,
-        z: 6 * baseHeightMultiplier,
-        size: 2.0,
-        energy: 0.70,
-        label: 'Salud Óptima',
-        color: '#00ff88',
-        type: 'intention',
-      },
-      {
-        id: 'learning',
-        x: 20,
-        y: 30,
-        z: 10 * baseHeightMultiplier,
-        size: 1.9,
-        energy: 0.75,
-        label: 'Aprendizaje Continuo',
-        color: '#44ff88',
-        type: 'intention',
-      },
-      {
-        id: 'peace',
-        x: -10,
-        y: 35,
-        z: 11 * baseHeightMultiplier,
-        size: 2.2,
-        energy: 0.82,
-        label: 'Paz Interior',
-        color: '#00ffaa',
-        type: 'intention',
-      },
-      // Manifestaciones
-      {
-        id: 'abundance',
-        x: 35,
-        y: 5,
-        z: 7 * baseHeightMultiplier,
-        size: 2.1,
-        energy: 0.68,
-        label: 'Abundancia',
-        color: '#ff0088',
-        type: 'manifestation',
-      },
-      {
-        id: 'purpose',
-        x: -5,
-        y: -35,
-        z: 13 * baseHeightMultiplier,
-        size: 2.3,
-        energy: 0.88,
-        label: 'Propósito de Vida',
-        color: '#ff44cc',
-        type: 'manifestation',
-      },
-    ];
+    // Usar datos del estado (ya cargados desde API o ejemplo)
+    const heightMultiplier = debugMode ? 1.5 : 1;
+    const nodes = nodesData.map(node => ({
+      ...node,
+      z: node.z * heightMultiplier,
+    }));
 
-    // Guardar nodos en el estado
-    setNodesData(nodes);
-
-    // Calcular estadísticas
-    const avgEnergy = nodes.reduce((acc, n) => acc + n.energy, 0) / nodes.length;
-
-    // Crear links más complejos
-    const links: LinkData[] = [
-      // Conexiones desde el Observador
-      { source: 'observer', target: 'work', strength: 0.9 },
-      { source: 'observer', target: 'family', strength: 0.95 },
-      { source: 'observer', target: 'partner', strength: 0.98 },
-      { source: 'observer', target: 'health', strength: 0.8 },
-      { source: 'observer', target: 'peace', strength: 0.85 },
-      { source: 'observer', target: 'purpose', strength: 0.92 },
-      // Conexiones entre proyectos
-      { source: 'work', target: 'creativity', strength: 0.7 },
-      { source: 'work', target: 'business', strength: 0.75 },
-      { source: 'business', target: 'abundance', strength: 0.65 },
-      // Conexiones entre relaciones
-      { source: 'family', target: 'partner', strength: 0.88 },
-      { source: 'family', target: 'friends', strength: 0.6 },
-      // Conexiones de intenciones
-      { source: 'health', target: 'peace', strength: 0.72 },
-      { source: 'learning', target: 'creativity', strength: 0.68 },
-      // Conexiones de manifestaciones
-      { source: 'purpose', target: 'abundance', strength: 0.58 },
-      { source: 'peace', target: 'purpose', strength: 0.78 },
-    ];
-
-    setStats({ total: nodes.length, avgEnergy: Math.round(avgEnergy * 100), connections: links.length });
+    const links = linksData;
 
     // Crear nodos 3D y guardarlos en el ref
     const nodeMeshes = new Map<string, BABYLON.Mesh>();
@@ -393,7 +359,20 @@ function Scene3D() {
       window.removeEventListener('resize', handleResize);
       engine.dispose();
     };
-  }, [debugMode]); // Recrear escena cuando cambie el modo debug
+  }, [debugMode, nodesData, linksData, loading]); // Recrear escena cuando cambien los datos
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-900">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-16 h-16 text-cyan-400 animate-spin mx-auto" />
+          <p className="text-cyan-400 font-light text-lg">Cargando tu mapa dimensional...</p>
+          <p className="text-slate-400 text-sm">Sincronizando datos del observador</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -405,6 +384,32 @@ function Scene3D() {
 
       {/* Panel de Controles Superior Izquierdo */}
       <div className="absolute top-24 left-6 z-50 space-y-3">
+        {/* Indicador de tipo de datos */}
+        <div className={`px-4 py-2 rounded-lg text-xs font-medium flex items-center gap-2 ${
+          usingRealData 
+            ? 'bg-green-500/20 border border-green-500/50 text-green-300' 
+            : 'bg-yellow-500/20 border border-yellow-500/50 text-yellow-300'
+        }`}>
+          {usingRealData ? (
+            <>
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+              Datos Reales
+            </>
+          ) : (
+            <>
+              <AlertCircle className="w-3 h-3" />
+              Datos de Ejemplo
+            </>
+          )}
+          <button
+            onClick={loadData}
+            className="ml-2 p-1 hover:bg-white/10 rounded transition-colors"
+            title="Recargar datos"
+          >
+            <RefreshCw className="w-3 h-3" />
+          </button>
+        </div>
+
         {/* Botón de Modo Debug */}
         <button
           onClick={() => setDebugMode(!debugMode)}
@@ -461,7 +466,7 @@ function Scene3D() {
         {/* Estadísticas */}
         <Card className="bg-black/80 backdrop-blur-md border-cyan-500/30 p-4">
           <p className="text-cyan-400 text-xs font-semibold mb-3 uppercase tracking-wider">Estadísticas</p>
-          <div className="grid grid-cols-3 gap-3 text-center">
+          <div className="grid grid-cols-3 gap-3 text-center mb-3">
             <div>
               <p className="text-2xl font-bold text-white">{stats.total}</p>
               <p className="text-xs text-slate-400">Nodos</p>
@@ -475,6 +480,37 @@ function Scene3D() {
               <p className="text-xs text-slate-400">Links</p>
             </div>
           </div>
+          {/* Breakdown por tipo */}
+          {Object.keys(breakdown).length > 0 && (
+            <div className="pt-3 border-t border-slate-700/50">
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {breakdown.projects !== undefined && (
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-[#ff00ff]" />
+                    <span className="text-slate-400">{breakdown.projects} proyectos</span>
+                  </div>
+                )}
+                {breakdown.relationships !== undefined && (
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-[#ffaa00]" />
+                    <span className="text-slate-400">{breakdown.relationships} relaciones</span>
+                  </div>
+                )}
+                {breakdown.intentions !== undefined && (
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-[#00ff88]" />
+                    <span className="text-slate-400">{breakdown.intentions} intenciones</span>
+                  </div>
+                )}
+                {breakdown.manifestations !== undefined && (
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-[#ff0088]" />
+                    <span className="text-slate-400">{breakdown.manifestations} manifest.</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </Card>
 
         {debugMode && (
