@@ -28,12 +28,41 @@ interface LinkData {
   strength: number;
 }
 
-export default function Scene3D() {
+function Scene3D() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<BABYLON.Engine | null>(null);
   const sceneRef = useRef<BABYLON.Scene | null>(null);
+  const cameraRef = useRef<BABYLON.ArcRotateCamera | null>(null);
   const [selectedNode, setSelectedNode] = useState<NodeData | null>(null);
   const [debugMode, setDebugMode] = useState(false);
+
+  // Listen for zoom events from parent
+  useEffect(() => {
+    const handleZoomEvent = (event: CustomEvent<{ action: string }>) => {
+      const camera = cameraRef.current;
+      if (!camera) return;
+
+      switch (event.detail.action) {
+        case 'in':
+          camera.radius = Math.max(camera.lowerRadiusLimit || 20, camera.radius - 5);
+          break;
+        case 'out':
+          camera.radius = Math.min(camera.upperRadiusLimit || 60, camera.radius + 5);
+          break;
+        case 'reset':
+          camera.alpha = Math.PI / 2;
+          camera.beta = Math.PI / 2.1;
+          camera.radius = 35;
+          camera.target = BABYLON.Vector3.Zero();
+          break;
+      }
+    };
+
+    window.addEventListener('scene3d-zoom', handleZoomEvent as EventListener);
+    return () => {
+      window.removeEventListener('scene3d-zoom', handleZoomEvent as EventListener);
+    };
+  }, []);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -72,6 +101,7 @@ export default function Scene3D() {
     camera.attachControl(canvasRef.current, true);
     camera.wheelPrecision = 30;
     camera.panningSensibility = 50; // Permite pan con clic derecho
+    cameraRef.current = camera; // Store camera reference for zoom controls
 
     // Luz cenital suave
     const light1 = new BABYLON.HemisphericLight(
@@ -316,3 +346,5 @@ export default function Scene3D() {
     </>
   );
 }
+
+export default Scene3D;

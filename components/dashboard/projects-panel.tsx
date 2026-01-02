@@ -282,7 +282,7 @@ export function ProjectsPanel() {
       <CardContent>
         <div className="space-y-4">
           {filteredProjects.length > 0 ? (
-            <div className="space-y-3 max-h-80 overflow-y-auto custom-scrollbar">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {filteredProjects.map((project, index) => (
                 <div
                   key={project.id}

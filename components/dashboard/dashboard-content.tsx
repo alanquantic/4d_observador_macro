@@ -314,33 +314,31 @@ export function DashboardContent() {
               <CoherenceMeters />
             </div>
 
-            {/* Grid Principal - Detalles Específicos */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-6 mb-8">
-              {/* Columna 1 - Timeline y Sincronicidades */}
-              <div className="space-y-6 min-w-0">
-                <div data-testid="timeline-viewer">
-                  <TimelineViewer />
-                </div>
-                <div data-testid="sync-tracker">
-                  <SynchronicityTracker />
-                </div>
+            {/* Secciones Full Width - Una debajo de otra */}
+            <div className="space-y-6 mb-8">
+              {/* Timeline */}
+              <div data-testid="timeline-viewer" className="w-full">
+                <TimelineViewer />
               </div>
 
-              {/* Columna 2 - Proyectos y Energía */}
-              <div className="space-y-6 min-w-0">
-                <div data-testid="projects-panel">
-                  <ProjectsPanel />
-                </div>
-                <div data-testid="energy-flows">
-                  <EnergyFlows />
-                </div>
+              {/* Proyectos */}
+              <div data-testid="projects-panel" className="w-full">
+                <ProjectsPanel />
               </div>
 
-              {/* Columna 3 - Relaciones */}
-              <div className="space-y-6 min-w-0 lg:col-span-2 2xl:col-span-1">
-                <div data-testid="relationships-map">
-                  <RelationshipsMap />
-                </div>
+              {/* Flujos de Energía */}
+              <div data-testid="energy-flows" className="w-full">
+                <EnergyFlows />
+              </div>
+
+              {/* Sincronicidades */}
+              <div data-testid="sync-tracker" className="w-full">
+                <SynchronicityTracker />
+              </div>
+
+              {/* Relaciones */}
+              <div data-testid="relationships-map" className="w-full">
+                <RelationshipsMap />
               </div>
             </div>
 

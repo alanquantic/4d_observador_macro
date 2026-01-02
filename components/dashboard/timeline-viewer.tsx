@@ -5,6 +5,8 @@ import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { 
   Clock, 
   Calendar, 
@@ -17,6 +19,7 @@ import {
 } from 'lucide-react';
 import { format, isAfter, isBefore, isToday } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { toast } from 'sonner';
 
 interface TimelineEvent {
   id: string;
@@ -53,10 +56,63 @@ export function TimelineViewer() {
   });
   const [loading, setLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState<'past' | 'present' | 'future'>('present');
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newEvent, setNewEvent] = useState({
+    title: '',
+    description: '',
+    type: 'event' as 'event' | 'decision' | 'project' | 'manifestation',
+    date: new Date().toISOString().split('T')[0]
+  });
 
   useEffect(() => {
     fetchTimelineData();
   }, []);
+
+  const handleAddEvent = async () => {
+    if (!newEvent.title.trim()) {
+      toast.error('El título es requerido');
+      return;
+    }
+
+    try {
+      const eventDate = new Date(newEvent.date);
+      const timeline = determineTimeline(eventDate);
+
+      const response = await fetch('/api/timeline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newEvent.title,
+          description: newEvent.description,
+          type: newEvent.type,
+          date: newEvent.date,
+          timeline: timeline
+        })
+      });
+
+      if (response.ok) {
+        const savedEvent = await response.json();
+        
+        // Refresh timeline data
+        await fetchTimelineData();
+
+        setNewEvent({
+          title: '',
+          description: '',
+          type: 'event',
+          date: new Date().toISOString().split('T')[0]
+        });
+        setShowAddForm(false);
+        toast.success('Evento guardado en la base de datos');
+      } else {
+        const error = await response.json();
+        toast.error(error.error || 'Error al guardar evento');
+      }
+    } catch (error) {
+      console.error('Error adding event:', error);
+      toast.error('Error al agregar evento');
+    }
+  };
 
   const fetchTimelineData = async () => {
     try {
@@ -166,11 +222,66 @@ export function TimelineViewer() {
           <Button 
             variant="ghost" 
             size="sm"
+            onClick={() => setShowAddForm(!showAddForm)}
             className="text-indigo-300 hover:text-indigo-100 hover:bg-indigo-500/20"
           >
             <Plus className="h-4 w-4" />
           </Button>
         </div>
+
+        {/* Formulario para agregar evento */}
+        {showAddForm && (
+          <div className="p-4 bg-slate-800/50 rounded-lg border border-indigo-500/20 space-y-3">
+            <Input
+              placeholder="Título del evento"
+              value={newEvent.title}
+              onChange={(e) => setNewEvent(prev => ({ ...prev, title: e.target.value }))}
+              className="bg-slate-700/50 border-slate-600 text-slate-200"
+            />
+            <Textarea
+              placeholder="Descripción (opcional)"
+              value={newEvent.description}
+              onChange={(e) => setNewEvent(prev => ({ ...prev, description: e.target.value }))}
+              className="bg-slate-700/50 border-slate-600 text-slate-200"
+              rows={2}
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <select
+                value={newEvent.type}
+                onChange={(e) => setNewEvent(prev => ({ ...prev, type: e.target.value as any }))}
+                className="bg-slate-700/50 border border-slate-600 text-slate-200 rounded-md p-2 text-sm"
+              >
+                <option value="event">Evento</option>
+                <option value="decision">Decisión</option>
+                <option value="project">Proyecto</option>
+                <option value="manifestation">Manifestación</option>
+              </select>
+              <Input
+                type="date"
+                value={newEvent.date}
+                onChange={(e) => setNewEvent(prev => ({ ...prev, date: e.target.value }))}
+                className="bg-slate-700/50 border-slate-600 text-slate-200"
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAddForm(false)}
+                className="text-slate-400"
+              >
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleAddEvent}
+                className="bg-indigo-600 hover:bg-indigo-700"
+              >
+                Agregar
+              </Button>
+            </div>
+          </div>
+        )}
         
         {/* Navegación de Período */}
         <div className="flex items-center justify-center gap-1 bg-slate-800/50 rounded-lg p-1">
@@ -224,17 +335,13 @@ export function TimelineViewer() {
           </div>
 
           {/* Lista de Eventos */}
-          <div className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {filteredEvents.length > 0 ? (
-              filteredEvents.map((event, index) => (
+              filteredEvents.slice(0, 6).map((event, index) => (
                 <div
                   key={event.id}
                   className={`relative p-4 rounded-lg border backdrop-blur-sm hover:shadow-lg hover:scale-105 transition-all duration-300 ${getEventColor(event.type, event.timeline)}`}
                 >
-                  {/* Línea de conexión */}
-                  {index < filteredEvents.length - 1 && (
-                    <div className="absolute left-8 top-16 w-0.5 h-8 bg-gradient-to-b from-current to-transparent opacity-30" />
-                  )}
                   
                   <div className="flex items-start gap-3">
                     <div className="flex-shrink-0 w-8 h-8 bg-current/20 rounded-full flex items-center justify-center">

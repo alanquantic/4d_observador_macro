@@ -6,6 +6,9 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Slider } from '@/components/ui/slider';
 import { 
   Users, 
   Plus, 
@@ -17,6 +20,7 @@ import {
   Star,
   Clock
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface Relationship {
   id: string;
@@ -35,10 +39,51 @@ export function RelationshipsMap() {
   const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newRelationship, setNewRelationship] = useState({
+    name: '',
+    description: '',
+    relationshipType: 'personal',
+    connectionQuality: 5,
+    energyExchange: 'balanced'
+  });
 
   useEffect(() => {
     fetchRelationships();
   }, []);
+
+  const handleAddRelationship = async () => {
+    if (!newRelationship.name.trim()) {
+      toast.error('El nombre es requerido');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/relationships', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newRelationship)
+      });
+
+      if (response.ok) {
+        await fetchRelationships();
+        setNewRelationship({
+          name: '',
+          description: '',
+          relationshipType: 'personal',
+          connectionQuality: 5,
+          energyExchange: 'balanced'
+        });
+        setShowAddForm(false);
+        toast.success('Relación agregada');
+      } else {
+        toast.error('Error al agregar relación');
+      }
+    } catch (error) {
+      console.error('Error adding relationship:', error);
+      toast.error('Error al agregar relación');
+    }
+  };
 
   const fetchRelationships = async () => {
     try {
@@ -173,11 +218,84 @@ export function RelationshipsMap() {
           <Button 
             variant="ghost" 
             size="sm"
+            onClick={() => setShowAddForm(!showAddForm)}
             className="text-pink-300 hover:text-pink-100 hover:bg-pink-500/20"
           >
             <Plus className="h-4 w-4" />
           </Button>
         </div>
+
+        {/* Formulario para agregar relación */}
+        {showAddForm && (
+          <div className="p-4 bg-slate-800/50 rounded-lg border border-pink-500/20 space-y-3">
+            <Input
+              placeholder="Nombre de la persona"
+              value={newRelationship.name}
+              onChange={(e) => setNewRelationship(prev => ({ ...prev, name: e.target.value }))}
+              className="bg-slate-700/50 border-slate-600 text-slate-200"
+            />
+            <Textarea
+              placeholder="Descripción (opcional)"
+              value={newRelationship.description}
+              onChange={(e) => setNewRelationship(prev => ({ ...prev, description: e.target.value }))}
+              className="bg-slate-700/50 border-slate-600 text-slate-200"
+              rows={2}
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <select
+                value={newRelationship.relationshipType}
+                onChange={(e) => setNewRelationship(prev => ({ ...prev, relationshipType: e.target.value }))}
+                className="bg-slate-700/50 border border-slate-600 text-slate-200 rounded-md p-2 text-sm"
+              >
+                <option value="personal">Personal</option>
+                <option value="professional">Profesional</option>
+                <option value="spiritual">Espiritual</option>
+                <option value="mentor">Mentor</option>
+                <option value="family">Familia</option>
+              </select>
+              <select
+                value={newRelationship.energyExchange}
+                onChange={(e) => setNewRelationship(prev => ({ ...prev, energyExchange: e.target.value }))}
+                className="bg-slate-700/50 border border-slate-600 text-slate-200 rounded-md p-2 text-sm"
+              >
+                <option value="balanced">Equilibrado</option>
+                <option value="giving">Dando</option>
+                <option value="receiving">Recibiendo</option>
+                <option value="draining">Drenante</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-400">Calidad de conexión</span>
+                <span className="text-pink-400">{newRelationship.connectionQuality}/10</span>
+              </div>
+              <Slider
+                value={[newRelationship.connectionQuality]}
+                onValueChange={(v) => setNewRelationship(prev => ({ ...prev, connectionQuality: v[0] }))}
+                max={10}
+                min={1}
+                step={1}
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAddForm(false)}
+                className="text-slate-400"
+              >
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleAddRelationship}
+                className="bg-pink-600 hover:bg-pink-700"
+              >
+                Agregar
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Filtros por Tipo */}
         <div className="flex gap-2 flex-wrap">
@@ -228,9 +346,10 @@ export function RelationshipsMap() {
       <CardContent>
         <div className="space-y-4">
           {filteredRelationships.length > 0 ? (
-            <div className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {filteredRelationships
                 .sort((a, b) => b.connectionQuality - a.connectionQuality)
+                .slice(0, 9)
                 .map((relationship, index) => (
                 <div
                   key={relationship.id}

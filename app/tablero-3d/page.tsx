@@ -1,11 +1,11 @@
 
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { ArrowLeft, Maximize2, Info } from 'lucide-react';
+import { ArrowLeft, Maximize2, Info, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 const Scene3D = dynamic(() => import('@/components/tablero3d/Scene3D').then((mod) => mod.default), {
@@ -23,6 +23,18 @@ const Scene3D = dynamic(() => import('@/components/tablero3d/Scene3D').then((mod
 
 export default function Tablero3DPage() {
   const router = useRouter();
+
+  const handleZoomIn = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('scene3d-zoom', { detail: { action: 'in' } }));
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('scene3d-zoom', { detail: { action: 'out' } }));
+  }, []);
+
+  const handleResetView = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('scene3d-zoom', { detail: { action: 'reset' } }));
+  }, []);
 
   return (
     <div className="relative h-screen w-full overflow-hidden bg-black">
@@ -47,6 +59,38 @@ export default function Tablero3DPage() {
             </Card>
           </div>
         </div>
+      </div>
+
+      {/* Controles de Zoom - Lado Derecho */}
+      <div className="absolute right-6 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-3">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleZoomIn}
+          className="w-12 h-12 bg-black/70 backdrop-blur-sm border-2 border-cyan-500/50 hover:bg-cyan-500/30 hover:border-cyan-400 text-cyan-400 rounded-xl shadow-lg shadow-cyan-500/20 transition-all"
+        >
+          <ZoomIn className="h-6 w-6" />
+        </Button>
+        
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleZoomOut}
+          className="w-12 h-12 bg-black/70 backdrop-blur-sm border-2 border-purple-500/50 hover:bg-purple-500/30 hover:border-purple-400 text-purple-400 rounded-xl shadow-lg shadow-purple-500/20 transition-all"
+        >
+          <ZoomOut className="h-6 w-6" />
+        </Button>
+
+        <div className="w-full h-px bg-gradient-to-r from-transparent via-slate-500/50 to-transparent my-1" />
+        
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleResetView}
+          className="w-12 h-12 bg-black/70 backdrop-blur-sm border-2 border-pink-500/50 hover:bg-pink-500/30 hover:border-pink-400 text-pink-400 rounded-xl shadow-lg shadow-pink-500/20 transition-all"
+        >
+          <RotateCcw className="h-5 w-5" />
+        </Button>
       </div>
 
       {/* Instrucciones DESTACADAS */}

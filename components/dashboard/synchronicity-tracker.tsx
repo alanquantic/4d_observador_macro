@@ -326,7 +326,7 @@ export function SynchronicityTracker() {
             Flujo de Sincronicidades
           </h3>
           
-          <div className="h-48">
+          <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData}>
                 <defs>
@@ -374,8 +374,8 @@ export function SynchronicityTracker() {
           </h3>
           
           {data.synchronicities.length > 0 ? (
-            <div className="space-y-3 max-h-64 overflow-y-auto custom-scrollbar">
-              {data.synchronicities.slice(0, 10).map((sync, index) => (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {data.synchronicities.slice(0, 6).map((sync, index) => (
                 <div
                   key={sync.id}
                   className="p-3 rounded-lg bg-slate-800/50 border border-slate-700/50 hover:border-emerald-500/30 transition-all duration-300"
