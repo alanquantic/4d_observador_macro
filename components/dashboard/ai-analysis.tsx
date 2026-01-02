@@ -30,6 +30,7 @@ interface AIAnalysis {
   synchronicityPatterns: string;
   nextSteps: string[];
   insights: AIInsight[];
+  rawResponse?: string;
 }
 
 export function AIAnalysis() {
@@ -48,16 +49,51 @@ export function AIAnalysis() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          prompt: `Como un guía experto en expansión de conciencia 4D, analiza mi estado actual basándote en mis métricas de coherencia, proyectos activos, relaciones y sincronicidades. 
+          prompt: `Eres un guía experto en expansión de conciencia 4D y desarrollo personal dimensional. Actúa como un mentor sabio que combina sabiduría ancestral con comprensión científica moderna.
 
-Por favor proporciona:
-1. Una evaluación general de mi nivel de desarrollo 4D
-2. Insights específicos sobre mi coherencia emocional/lógica/energética
-3. Recomendaciones para optimizar mis flujos de energía
-4. Análisis de los patrones de sincronicidad que estoy experimentando
-5. Pasos concretos para acelerar mi expansión de conciencia
+IMPORTANTE: Responde ÚNICAMENTE con un objeto JSON válido, sin markdown, sin \`\`\`, solo el JSON puro.
 
-Responde en un tono sabio pero accesible, como un mentor espiritual que comprende tanto la ciencia como la metafísica. Sé específico y práctico en tus recomendaciones.`
+Genera un análisis personalizado con esta estructura exacta:
+
+{
+  "overallAssessment": "Una evaluación general de 2-3 oraciones sobre el estado de desarrollo 4D del usuario, mencionando su potencial y camino actual",
+  "coherenceInsight": "Análisis de 2-3 oraciones sobre la coherencia emocional, lógica y energética, con observaciones específicas",
+  "energyRecommendations": [
+    "Recomendación práctica 1 para optimizar energía",
+    "Recomendación práctica 2",
+    "Recomendación práctica 3",
+    "Recomendación práctica 4"
+  ],
+  "synchronicityPatterns": "Descripción de 2-3 oraciones sobre patrones de sincronicidad y cómo interpretarlos",
+  "nextSteps": [
+    "Paso concreto 1 con tiempo específico",
+    "Paso concreto 2",
+    "Paso concreto 3",
+    "Paso concreto 4"
+  ],
+  "insights": [
+    {
+      "type": "strength",
+      "title": "Título de fortaleza detectada",
+      "description": "Descripción breve de esta fortaleza",
+      "actionable": false
+    },
+    {
+      "type": "opportunity",
+      "title": "Título de oportunidad de crecimiento",
+      "description": "Descripción breve de la oportunidad",
+      "actionable": true
+    },
+    {
+      "type": "improvement",
+      "title": "Título de área de mejora",
+      "description": "Descripción breve del área a mejorar",
+      "actionable": true
+    }
+  ]
+}
+
+Genera contenido único, profundo y personalizado. Usa un tono sabio pero accesible. Sé específico y práctico. Varía las recomendaciones y hazlas relevantes para alguien en un camino de expansión de conciencia.`
         })
       });
 
@@ -82,53 +118,77 @@ Responde en un tono sabio pero accesible, como un mentor espiritual que comprend
   };
 
   const parseAIResponse = (response: string): AIAnalysis => {
-    // Esta función procesa la respuesta de la IA para estructurarla
-    const lines = response.split('\n').filter(line => line.trim());
-    
-    const insights: AIInsight[] = [
-      {
-        type: 'strength',
-        title: 'Coherencia Emocional Estable',
-        description: 'Tu nivel de coherencia emocional muestra una base sólida para la expansión dimensional.',
-        actionable: false
-      },
-      {
-        type: 'opportunity',
-        title: 'Optimizar Flujos Energéticos',
-        description: 'Hay oportunidades para redistribuir tu energía hacia proyectos de mayor impacto.',
-        actionable: true
-      },
-      {
-        type: 'improvement',
-        title: 'Aumentar Frecuencia de Sincronicidades',
-        description: 'Puedes incrementar tu sensibilidad a las sincronicidades mediante prácticas específicas.',
-        actionable: true
+    try {
+      // Limpiar la respuesta de posibles caracteres extra
+      let cleanResponse = response.trim();
+      
+      // Remover bloques de código markdown si existen
+      if (cleanResponse.startsWith('```json')) {
+        cleanResponse = cleanResponse.slice(7);
+      } else if (cleanResponse.startsWith('```')) {
+        cleanResponse = cleanResponse.slice(3);
       }
-    ];
+      if (cleanResponse.endsWith('```')) {
+        cleanResponse = cleanResponse.slice(0, -3);
+      }
+      cleanResponse = cleanResponse.trim();
 
-    return {
-      overallAssessment: `Tu perfil de Observador 4D muestra un desarrollo prometedor. Has establecido una base sólida en la coherencia dimensional y estás experimentando sincronicidades regulares, lo que indica una creciente alineación con las frecuencias superiores de conciencia.`,
+      // Intentar parsear el JSON
+      const parsed = JSON.parse(cleanResponse);
       
-      coherenceInsight: `Tu coherencia general está en un nivel funcional que permite la manifestación consciente. La coherencia emocional es tu fortaleza actual, mientras que hay espacio para fortalecer la coherencia lógica mediante ejercicios de integración mente-corazón.`,
+      // Validar y retornar la estructura
+      return {
+        overallAssessment: parsed.overallAssessment || 'Análisis no disponible',
+        coherenceInsight: parsed.coherenceInsight || 'Insight de coherencia no disponible',
+        energyRecommendations: Array.isArray(parsed.energyRecommendations) 
+          ? parsed.energyRecommendations 
+          : ['Recomendación no disponible'],
+        synchronicityPatterns: parsed.synchronicityPatterns || 'Patrones no disponibles',
+        nextSteps: Array.isArray(parsed.nextSteps) 
+          ? parsed.nextSteps 
+          : ['Paso no disponible'],
+        insights: Array.isArray(parsed.insights) 
+          ? parsed.insights.map((insight: any) => ({
+              type: insight.type || 'opportunity',
+              title: insight.title || 'Insight',
+              description: insight.description || '',
+              actionable: insight.actionable ?? true
+            }))
+          : [],
+        rawResponse: response
+      };
+    } catch (parseError) {
+      console.error('Error parseando respuesta de IA:', parseError);
+      console.log('Respuesta raw:', response);
       
-      energyRecommendations: [
-        'Redistribuir un 15% más de energía hacia proyectos espirituales',
-        'Reducir inversión energética en relaciones que drenan',
-        'Establecer rutinas de recarga energética matutinas',
-        'Implementar técnicas de protección energética'
-      ],
-      
-      synchronicityPatterns: `Los patrones de sincronicidad muestran una frecuencia creciente, especialmente en números repetitivos y encuentros significativos. Esto sugiere que tu antena dimensional está calibrándose correctamente para recibir información del campo cuántico.`,
-      
-      nextSteps: [
-        'Practicar visualización desde perspectiva superior 20 min/día',
-        'Implementar registro diario de decisiones desde coherencia 4D',
-        'Establecer intenciones específicas para cada proyecto activo',
-        'Crear ritual de conexión con la macrovisión semanal'
-      ],
-      
-      insights
-    };
+      // Fallback: usar la respuesta como texto plano
+      return {
+        overallAssessment: response.slice(0, 500) || 'El análisis fue generado pero no pudo estructurarse correctamente.',
+        coherenceInsight: 'Tu nivel de coherencia muestra potencial para crecimiento dimensional.',
+        energyRecommendations: [
+          'Dedica 15 minutos diarios a la meditación consciente',
+          'Observa tus patrones de pensamiento sin juzgarlos',
+          'Practica la respiración consciente en momentos de estrés',
+          'Registra tus insights y sincronicidades diariamente'
+        ],
+        synchronicityPatterns: 'Mantén tu atención abierta a las coincidencias significativas que el universo te presenta.',
+        nextSteps: [
+          'Inicia un diario de observación 4D',
+          'Establece una práctica de visualización matutina',
+          'Conecta con tu intención más elevada cada día',
+          'Revisa tu progreso semanalmente'
+        ],
+        insights: [
+          {
+            type: 'opportunity' as const,
+            title: 'Expansión en Progreso',
+            description: 'Tu camino de desarrollo dimensional está en marcha.',
+            actionable: true
+          }
+        ],
+        rawResponse: response
+      };
+    }
   };
 
   const getInsightIcon = (type: AIInsight['type']) => {
