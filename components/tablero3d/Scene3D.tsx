@@ -44,15 +44,15 @@ function Scene3D() {
 
       switch (event.detail.action) {
         case 'in':
-          camera.radius = Math.max(camera.lowerRadiusLimit || 20, camera.radius - 5);
+          camera.radius = Math.max(camera.lowerRadiusLimit || 20, camera.radius - 10);
           break;
         case 'out':
-          camera.radius = Math.min(camera.upperRadiusLimit || 60, camera.radius + 5);
+          camera.radius = Math.min(camera.upperRadiusLimit || 150, camera.radius + 10);
           break;
         case 'reset':
           camera.alpha = Math.PI / 2;
           camera.beta = Math.PI / 2.1;
-          camera.radius = 35;
+          camera.radius = 120; // Vista expandida por defecto
           camera.target = BABYLON.Vector3.Zero();
           break;
       }
@@ -89,17 +89,17 @@ function Scene3D() {
       'camera',
       Math.PI / 2,     // Vista totalmente cenital
       Math.PI / 2.1,   // Ligeramente inclinada
-      35,              // Más cercana y equilibrada
+      120,             // Inicia con zoom out máximo para vista expandida
       BABYLON.Vector3.Zero(),
       scene
     );
     camera.lowerRadiusLimit = 20;
-    camera.upperRadiusLimit = 60;
+    camera.upperRadiusLimit = 150; // Permite zoom out mucho más extenso
     camera.lowerBetaLimit = 0.1;
     camera.upperBetaLimit = Math.PI / 2.5; // Permite más rotación
     camera.fov = 0.3; // Vista más plana y arquitectónica
     camera.attachControl(canvasRef.current, true);
-    camera.wheelPrecision = 30;
+    camera.wheelPrecision = 20; // Más sensible para el zoom
     camera.panningSensibility = 50; // Permite pan con clic derecho
     cameraRef.current = camera; // Store camera reference for zoom controls
 
