@@ -93,40 +93,35 @@ export default function Tablero3DPage() {
         </Button>
       </div>
 
-      {/* Instrucciones DESTACADAS */}
-      <div className="absolute bottom-6 left-6 z-50 max-w-md pointer-events-none">
-        <Card className="bg-gradient-to-br from-black/90 via-cyan-900/40 to-black/90 backdrop-blur-md border-2 border-cyan-400/50 p-5 pointer-events-auto shadow-2xl shadow-cyan-500/30 animate-pulse-slow">
-          <div className="flex items-start gap-3 mb-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
-              <Info className="h-6 w-6 text-white" />
+      {/* Instrucciones Compactas */}
+      <div className="absolute bottom-6 left-6 z-50 max-w-sm pointer-events-none">
+        <Card className="bg-black/85 backdrop-blur-md border border-cyan-500/40 p-4 pointer-events-auto shadow-xl">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Info className="h-4 w-4 text-white" />
             </div>
             <div>
-              <p className="text-cyan-300 font-bold text-lg">🎮 Controles 3D</p>
-              <p className="text-purple-400 text-xs font-medium">Tablero Cuántico Interactivo</p>
+              <p className="text-cyan-300 font-semibold text-sm">Controles 3D</p>
+              <p className="text-slate-500 text-xs">Tablero Dimensional</p>
             </div>
           </div>
-          <ul className="text-slate-200 space-y-2 text-sm">
-            <li className="flex items-center gap-2">
-              <span className="text-cyan-400 font-bold">🔄</span>
-              <span><span className="text-white font-bold">Clic + Arrastrar:</span> ROTAR escena 3D</span>
-            </li>
-            <li className="flex items-center gap-2">
-              <span className="text-purple-400 font-bold">🔍</span>
-              <span><span className="text-white font-bold">Scroll:</span> Zoom in/out</span>
-            </li>
-            <li className="flex items-center gap-2">
-              <span className="text-pink-400 font-bold">👆</span>
-              <span><span className="text-white font-bold">Clic en Nodo:</span> Ver información</span>
-            </li>
-            <li className="flex items-center gap-2">
-              <span className="text-green-400 font-bold">↔️</span>
-              <span><span className="text-white font-bold">Clic Derecho:</span> Pan/mover mapa</span>
-            </li>
-          </ul>
-          <div className="mt-4 p-3 bg-cyan-500/20 border border-cyan-400/50 rounded-lg">
-            <p className="text-cyan-300 text-xs font-bold text-center">
-              ⚡ ARRASTRA para ver la rotación 3D en acción
-            </p>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="flex items-center gap-1.5 text-slate-300">
+              <span className="text-cyan-400">🔄</span>
+              <span>Arrastrar = Rotar</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-slate-300">
+              <span className="text-purple-400">🔍</span>
+              <span>Scroll = Zoom</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-slate-300">
+              <span className="text-pink-400">👆</span>
+              <span>Clic = Info nodo</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-slate-300">
+              <span className="text-green-400">↔️</span>
+              <span>Clic Der. = Pan</span>
+            </div>
           </div>
         </Card>
       </div>
