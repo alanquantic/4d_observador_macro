@@ -134,7 +134,7 @@ export function DashboardContent() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-slate-900 to-purple-900/20">
+    <div className="min-h-screen bg-gradient-to-br from-black via-slate-900 to-purple-900/20 flex">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div 
@@ -143,8 +143,8 @@ export function DashboardContent() {
         />
       )}
 
-      {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-gradient-to-b from-slate-900/95 to-slate-800/95 backdrop-blur-sm border-r border-purple-500/20 transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:inset-0`}>
+      {/* Sidebar - Fixed on all screens */}
+      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-gradient-to-b from-slate-900/95 to-slate-800/95 backdrop-blur-sm border-r border-purple-500/20 transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-200 ease-in-out lg:translate-x-0`}>
         <div className="flex flex-col h-full">
           {/* Logo/Header */}
           <div className="flex items-center gap-3 p-6 border-b border-purple-500/20">
@@ -218,7 +218,7 @@ export function DashboardContent() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 lg:ml-64">
+      <div className="flex-1 w-full lg:pl-64">
         {/* Top Header */}
         <header className="bg-slate-900/50 backdrop-blur-sm border-b border-slate-700/50 sticky top-0 z-30">
           <div className="flex items-center justify-between px-6 py-4">
