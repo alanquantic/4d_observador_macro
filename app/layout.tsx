@@ -6,6 +6,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Providers } from "@/components/providers";
+import { ChatWrapper } from "@/components/chat/chat-wrapper";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -59,6 +60,7 @@ export default function RootLayout({
           <Providers>
             <div className="min-h-screen bg-gradient-to-br from-black via-slate-900 to-purple-900/20">
               {children}
+              <ChatWrapper />
             </div>
           </Providers>
         </ThemeProvider>
