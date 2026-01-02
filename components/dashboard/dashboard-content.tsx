@@ -134,7 +134,7 @@ export function DashboardContent() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-slate-900 to-purple-900/20 flex">
+    <div className="min-h-screen bg-gradient-to-br from-black via-slate-900 to-purple-900/20 overflow-x-hidden">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div 
@@ -218,7 +218,7 @@ export function DashboardContent() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 w-full lg:pl-64">
+      <div className="flex-1 min-w-0 lg:ml-64">
         {/* Top Header */}
         <header className="bg-slate-900/50 backdrop-blur-sm border-b border-slate-700/50 sticky top-0 z-30">
           <div className="flex items-center justify-between px-6 py-4">
@@ -261,8 +261,8 @@ export function DashboardContent() {
         </header>
 
         {/* Dashboard Grid */}
-        <main className="p-6">
-          <div className="max-w-7xl mx-auto">
+        <main className="p-4 lg:p-6 overflow-x-hidden">
+          <div className="w-full max-w-full">
             {/* Tablero de Juego 4D - Visión Aérea Principal */}
             <div className="mb-6" data-testid="game-board">
               <div className="mb-4 text-center">
@@ -315,9 +315,9 @@ export function DashboardContent() {
             </div>
 
             {/* Grid Principal - Detalles Específicos */}
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-8">
-              {/* Columna Izquierda - Timeline y Sincronicidades */}
-              <div className="xl:col-span-1 space-y-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-6 mb-8">
+              {/* Columna 1 - Timeline y Sincronicidades */}
+              <div className="space-y-6 min-w-0">
                 <div data-testid="timeline-viewer">
                   <TimelineViewer />
                 </div>
@@ -326,8 +326,8 @@ export function DashboardContent() {
                 </div>
               </div>
 
-              {/* Columna Central - Proyectos y Energía */}
-              <div className="xl:col-span-1 space-y-8">
+              {/* Columna 2 - Proyectos y Energía */}
+              <div className="space-y-6 min-w-0">
                 <div data-testid="projects-panel">
                   <ProjectsPanel />
                 </div>
@@ -336,8 +336,8 @@ export function DashboardContent() {
                 </div>
               </div>
 
-              {/* Columna Derecha - Relaciones */}
-              <div className="xl:col-span-1 space-y-8">
+              {/* Columna 3 - Relaciones */}
+              <div className="space-y-6 min-w-0 lg:col-span-2 2xl:col-span-1">
                 <div data-testid="relationships-map">
                   <RelationshipsMap />
                 </div>

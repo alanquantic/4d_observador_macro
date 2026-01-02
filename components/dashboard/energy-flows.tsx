@@ -215,9 +215,9 @@ export function EnergyFlows() {
             Distribución de Energía
           </h3>
           
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
             {/* Gráfico de Torta */}
-            <div className="h-64">
+            <div className="h-56 min-w-0">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -252,7 +252,7 @@ export function EnergyFlows() {
             </div>
 
             {/* Lista Detallada */}
-            <div className="space-y-3 max-h-64 overflow-y-auto custom-scrollbar">
+            <div className="space-y-3 max-h-56 overflow-y-auto min-w-0">
               {(isEditing ? tempFlows : energyData.flows).map((flow, index) => (
                 <div key={flow.category} className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -304,9 +304,9 @@ export function EnergyFlows() {
               Entrada vs Salida de Energía
             </h3>
             
-            <div className="h-64">
+            <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={barData} margin={{ top: 5, right: 30, left: 20, bottom: 45 }}>
+                <BarChart data={barData} margin={{ top: 5, right: 10, left: 0, bottom: 45 }}>
                   <XAxis 
                     dataKey="category" 
                     tick={{ fontSize: 10 }}
@@ -338,7 +338,7 @@ export function EnergyFlows() {
         )}
 
         {/* Insights Energéticos */}
-        <div className="grid md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-3 gap-2">
           <div className="text-center p-4 bg-slate-800/30 rounded-lg">
             <div className="text-2xl font-bold text-yellow-400">
               {energyData.summary.totalActive}
