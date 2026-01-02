@@ -1,0 +1,363 @@
+
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+// NextAuth Required Tables
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  password      String?
+  emailVerified DateTime?
+  image         String?
+  role          String?   @default("user")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // NextAuth Relations
+  accounts Account[]
+  sessions Session[]
+
+  // OBSERVADOR 4D Relations
+  dailyEntries    DailyEntry[]
+  intentions      Intention[]
+  patterns        Pattern[]
+  projects        Project[]
+  relationships   Relationship[]
+  manifestations  Manifestation[]
+  metrics         UserMetrics[]
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// OBSERVADOR 4D Core Tables
+model DailyEntry {
+  id            String   @id @default(cuid())
+  userId        String
+  date          DateTime @default(now())
+  
+  // Estado emocional y energético
+  emotionalState    Float    // 1-10 scale
+  energyLevel       Float    // 1-10 scale
+  coherenceLevel    Float?   // Calculated coherence for the day
+  sleepQuality      Float?   // 1-5 stars
+  
+  // Eventos y decisiones del día
+  significantEvents String?  @db.Text  // Main events of the day
+  mainThoughts      String?  @db.Text  // Main thoughts and reflections
+  events            Json?    // Array of events: [{title, description, impact, timestamp}]
+  decisions         Json?    // Array of decisions: [{title, description, alignment, timestamp}]
+  
+  // Intenciones vs Acciones
+  plannedActions    Json?    // Array of planned actions
+  actualActions     Json?    // Array of actual actions taken
+  alignmentScore    Float?   // How well actions matched intentions
+  
+  // Notas y observaciones
+  observations      String?  @db.Text
+  insights          String?  @db.Text
+  synchronicities   String?  @db.Text  // Observed synchronicities as text
+  synchronicitiesData Json?  // Array of noticed synchronicities with details
+  
+  // AI Generated Content
+  reflectiveQuestions Json?  // AI-generated questions for the day
+  aiInsights         String? @db.Text  // AI-generated insights
+  
+  // Relaciones
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emotions Emotion[]
+  intentionFulfillments IntentionFulfillment[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, date])
+}
+
+model Emotion {
+  id            String   @id @default(cuid())
+  entryId       String
+  
+  emotionType   String   // joy, sadness, anger, peace, anxiety, etc.
+  intensity     Float    // 1-10 scale
+  notes         String?
+  
+  entry DailyEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+
+  @@index([entryId])
+}
+
+model Intention {
+  id            String   @id @default(cuid())
+  userId        String
+  
+  title         String
+  description   String?  @db.Text
+  category      String   // health, work, relationships, personal_growth, spiritual, etc.
+  
+  // Frecuencia y duración
+  frequency     String   @default("daily") // daily, weekly, monthly, one_time
+  startDate     DateTime @default(now())
+  endDate       DateTime?
+  
+  // Estado
+  status        String   @default("active") // active, completed, paused, cancelled
+  
+  // Métricas
+  totalExpectedDays  Int?     // Total days this intention should be fulfilled
+  totalFulfilledDays Int      @default(0) // Total days actually fulfilled
+  currentStreak      Int      @default(0) // Current consecutive days fulfilled
+  longestStreak      Int      @default(0) // Longest streak ever
+  
+  // Notas adicionales
+  notes         String?  @db.Text
+  
+  // Relaciones
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fulfillments IntentionFulfillment[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([userId, frequency])
+}
+
+model IntentionFulfillment {
+  id            String   @id @default(cuid())
+  intentionId   String
+  entryId       String
+  
+  fulfilled     Boolean  @default(false)
+  notes         String?
+  
+  intention Intention @relation(fields: [intentionId], references: [id], onDelete: Cascade)
+  entry     DailyEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+
+  @@unique([intentionId, entryId])
+  @@index([intentionId])
+  @@index([entryId])
+}
+
+model Pattern {
+  id            String   @id @default(cuid())
+  userId        String
+  
+  patternType   String   // emotional, behavioral, cyclical, correlational
+  title         String
+  description   String   @db.Text
+  
+  // Detalles del patrón
+  frequency     String?  // daily, weekly, monthly, etc.
+  confidence    Float    @default(0.5) // 0-1 confidence level
+  impact        String?  // positive, negative, neutral
+  
+  // Detección
+  aiGenerated   Boolean  @default(true)
+  firstDetected DateTime @default(now())
+  lastObserved  DateTime @default(now())
+  occurrenceCount Int    @default(1)
+  
+  // Datos de soporte
+  supportingData Json?   // Evidence and examples
+  
+  // Sugerencias
+  suggestions   String?  @db.Text // AI-generated suggestions
+  
+  // Relación con usuario
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, patternType])
+  @@index([userId, lastObserved])
+}
+
+model Project {
+  id            String   @id @default(cuid())
+  userId        String
+  
+  name          String
+  description   String?
+  category      String?  // personal, professional, spiritual, etc.
+  
+  // Estado y progreso
+  status        String   @default("active") // active, paused, completed, cancelled
+  progress      Float    @default(0.0) // 0-100 percentage
+  energyInvested Float   @default(0.0) // 1-10 scale
+  
+  // Timeframe
+  startDate     DateTime @default(now())
+  targetDate    DateTime?
+  completedDate DateTime?
+  
+  // Detalles
+  objectives    Json?    // Array of objectives with sub-goals
+  nextSteps     Json?    // Array of next actions
+  resources     Json?    // Required resources
+  
+  // Conexiones
+  relatedPeople String[] // Array of relationship IDs involved
+  
+  // Métricas
+  impactLevel   Float?   // Expected impact 1-10
+  satisfactionLevel Float? // Personal satisfaction 1-10
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+}
+
+model Relationship {
+  id            String   @id @default(cuid())
+  userId        String
+  
+  name          String
+  description   String?
+  relationshipType String // personal, professional, spiritual, mentor, etc.
+  
+  // Calidad de conexión
+  connectionQuality Float @default(5.0) // 1-10 scale
+  energyExchange    String @default("balanced") // giving, receiving, balanced, draining
+  
+  // Detalles
+  contactFrequency  String? // daily, weekly, monthly, occasional, rare
+  lastInteraction   DateTime?
+  notes            String?
+  
+  // Tags y categorías
+  tags             String[] // Array of tags
+  importance       Float?   // 1-10 importance in life
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, relationshipType])
+}
+
+model Manifestation {
+  id            String   @id @default(cuid())
+  userId        String
+  
+  title         String
+  description   String?
+  category      String?  // health, wealth, relationships, career, spiritual, etc.
+  
+  // Parámetros de manifestación
+  timeframe     String   // short_term, medium_term, long_term
+  energyRequired Float   // 1-10 scale of energy investment needed
+  impactLevel   Float   // 1-10 expected life impact
+  
+  // Estado de manifestación
+  status        String  @default("intention") // intention, action, manifesting, completed, cancelled
+  manifestationStage Float @default(0.0) // 0-100 progress percentage
+  
+  // Fechas importantes
+  intendedBy    DateTime?
+  actionStarted DateTime?
+  manifestedDate DateTime?
+  
+  // Detalles específicos
+  specificGoals  Json?   // Array of specific, measurable goals
+  actionSteps    Json?   // Required action steps
+  resources      Json?   // Resources needed
+  obstacles      Json?   // Potential obstacles and solutions
+  
+  // Tracking
+  evidenceLog    Json?   // Signs and evidence of manifestation
+  gratitudeLogs  Json?   // Gratitude entries related to this manifestation
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+}
+
+model UserMetrics {
+  id            String   @id @default(cuid())
+  userId        String
+  date          DateTime @default(now())
+  
+  // Métricas de coherencia
+  overallCoherence    Float   // 0-100 overall coherence score
+  emotionalCoherence  Float   // 0-100 emotional consistency
+  logicalCoherence    Float   // 0-100 logical alignment of actions
+  energeticCoherence  Float   // 0-100 energy balance and flow
+  
+  // Patrones detectados
+  dominantPatterns    Json?   // Array of detected behavioral patterns
+  energyCycles        Json?   // Detected energy cycles and rhythms
+  decisionPatterns    Json?   // Patterns in decision-making
+  
+  // Sincronicidades
+  synchronicityCount  Int     @default(0)
+  synchronicityScore  Float?  // Quality/impact of synchronicities
+  
+  // Progreso
+  manifestationRate   Float?  // Percentage of intentions manifested
+  projectCompletion   Float?  // Average project completion rate
+  relationshipHealth  Float?  // Average relationship quality
+  
+  // Análisis temporal
+  weeklyTrend         String? // improving, stable, declining
+  monthlyPattern      Json?   // Monthly behavioral patterns
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId, date])
+}
