@@ -13,7 +13,9 @@ import {
   ArrowRight,
   CheckCircle,
   XCircle,
-  RefreshCw
+  RefreshCw,
+  Brain,
+  Sparkles
 } from 'lucide-react';
 
 interface DecisionData {
@@ -83,6 +85,46 @@ export function DecisionMode({ onClose }: DecisionModeProps) {
   const [data, setData] = useState<DecisionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Estado para análisis IA profundo
+  const [aiAnalysis, setAiAnalysis] = useState<{
+    loading: boolean;
+    result: { coherence: number; energy: number; diagnosis: string; recommendation: string } | null;
+    error: string | null;
+  }>({ loading: false, result: null, error: null });
+
+  const analyzeWithAI = async () => {
+    if (!data) return;
+    
+    setAiAnalysis({ loading: true, result: null, error: null });
+    try {
+      const systemSummary = `Sistema OBSERVADOR4D con ${data.metadata.totalNodes} nodos activos. 
+Health Score: ${data.healthScore}%. 
+Top prioridad: ${data.topCritical[0]?.label || 'ninguno'}. 
+Cuello de botella: ${data.bottleneck?.label || 'ninguno'} con ${data.bottleneck?.coherence || 0}% coherencia.
+Breakdown: ${data.metadata.breakdown.projects} proyectos, ${data.metadata.breakdown.relationships} relaciones.`;
+
+      const response = await fetch('/api/gemini/analyze-coherence', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userLog: systemSummary,
+          projectName: 'Sistema Global OBSERVADOR4D',
+        }),
+      });
+
+      if (!response.ok) throw new Error('Error en análisis IA');
+      
+      const result = await response.json();
+      setAiAnalysis({ loading: false, result, error: null });
+    } catch (err) {
+      setAiAnalysis({ 
+        loading: false, 
+        result: null, 
+        error: (err as Error).message || 'Error al analizar'
+      });
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -353,6 +395,67 @@ export function DecisionMode({ onClose }: DecisionModeProps) {
               </Card>
             </div>
           </div>
+
+          {/* Análisis IA Profundo */}
+          <Card className="bg-gradient-to-r from-purple-950/50 to-slate-900/50 border-purple-500/30 p-6 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <Brain className="w-6 h-6 text-purple-400" />
+                <div>
+                  <h2 className="text-lg font-semibold text-white">Análisis IA Profundo</h2>
+                  <p className="text-xs text-purple-300/70">Powered by Gemini</p>
+                </div>
+              </div>
+              <button
+                onClick={analyzeWithAI}
+                disabled={aiAnalysis.loading}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-700 hover:to-cyan-700 text-white rounded-lg font-medium transition-all disabled:opacity-50"
+              >
+                {aiAnalysis.loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Analizando...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    Analizar Sistema
+                  </>
+                )}
+              </button>
+            </div>
+
+            {aiAnalysis.result && (
+              <div className="bg-purple-900/20 border border-purple-500/20 rounded-lg p-4 mt-4">
+                <div className="flex gap-4 mb-3">
+                  <span className="text-xs px-2 py-1 bg-cyan-500/20 text-cyan-400 rounded-full">
+                    Coherencia IA: {(aiAnalysis.result.coherence * 100).toFixed(0)}%
+                  </span>
+                  <span className="text-xs px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded-full">
+                    Energía IA: {(aiAnalysis.result.energy * 100).toFixed(0)}%
+                  </span>
+                </div>
+                <p className="text-sm text-slate-300 mb-2">
+                  <strong className="text-purple-300">Diagnóstico:</strong> {aiAnalysis.result.diagnosis}
+                </p>
+                <p className="text-sm text-purple-300/80 italic">
+                  {aiAnalysis.result.recommendation}
+                </p>
+              </div>
+            )}
+
+            {aiAnalysis.error && (
+              <div className="bg-red-900/20 border border-red-500/20 rounded-lg p-3 mt-4">
+                <p className="text-sm text-red-300">{aiAnalysis.error}</p>
+              </div>
+            )}
+
+            {!aiAnalysis.result && !aiAnalysis.error && !aiAnalysis.loading && (
+              <p className="text-sm text-slate-500 text-center py-4">
+                Haz clic en &quot;Analizar Sistema&quot; para obtener un diagnóstico IA personalizado de tu sistema.
+              </p>
+            )}
+          </Card>
 
           {/* Footer */}
           <div className="text-center text-slate-500 text-sm">

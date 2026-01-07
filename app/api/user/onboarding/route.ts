@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { createFullSnapshot } from '@/lib/snapshotService';
 
 // GET - Obtener estado del onboarding
 export async function GET() {
@@ -139,12 +140,19 @@ export async function PUT() {
       },
     });
 
+    // Crear snapshot inicial de todos los nodos del usuario
+    const snapshotsCreated = await createFullSnapshot(session.user.id);
+
     return NextResponse.json({
       success: true,
       message: '¡Onboarding completado! Bienvenido a OBSERVADOR4D',
       onboarding: {
         completed: user.onboardingCompleted,
         currentStep: user.onboardingStep,
+      },
+      snapshots: {
+        created: snapshotsCreated,
+        message: `Se crearon ${snapshotsCreated} snapshots iniciales para tu Timeline`,
       },
     });
 

@@ -8,7 +8,7 @@ import { Link3D } from './Link3D';
 import { Grid3D } from './Grid3D';
 import { Particles3D } from './Particles3D';
 import { Card } from '@/components/ui/card';
-import { X, Filter, Eye, Layers, Target, Sparkles, Users, Briefcase, Lightbulb, Loader2, RefreshCw, AlertCircle, TrendingUp, TrendingDown, Zap, ArrowRight } from 'lucide-react';
+import { X, Filter, Eye, Layers, Target, Sparkles, Users, Briefcase, Lightbulb, Loader2, RefreshCw, AlertCircle, TrendingUp, TrendingDown, Zap, ArrowRight, Brain } from 'lucide-react';
 import { interpretNode, NodeInterpretation } from '@/lib/nodeInterpreter';
 
 interface NodeData {
@@ -113,7 +113,47 @@ function Scene3D() {
   const [error, setError] = useState<string | null>(null);
   const [usingRealData, setUsingRealData] = useState(false);
   const [breakdown, setBreakdown] = useState<Record<string, number>>({});
+  
+  // Estado para análisis IA
+  const [aiAnalysis, setAiAnalysis] = useState<{
+    loading: boolean;
+    result: { coherence: number; energy: number; diagnosis: string; recommendation: string } | null;
+    error: string | null;
+  }>({ loading: false, result: null, error: null });
   const [systemCoherence, setSystemCoherence] = useState<number>(0);
+
+  // Función para análisis IA del nodo seleccionado
+  const analyzeNodeWithAI = useCallback(async (node: NodeData) => {
+    setAiAnalysis({ loading: true, result: null, error: null });
+    try {
+      const response = await fetch('/api/gemini/analyze-coherence', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userLog: `Analiza el estado de "${node.label}" (${node.type}). Energía actual: ${(node.energy * 100).toFixed(0)}%. Conexiones con otros elementos del sistema.`,
+          projectName: node.label,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Error en análisis IA');
+      }
+
+      const result = await response.json();
+      setAiAnalysis({ loading: false, result, error: null });
+    } catch (err) {
+      setAiAnalysis({ 
+        loading: false, 
+        result: null, 
+        error: (err as Error).message || 'Error al analizar con IA'
+      });
+    }
+  }, []);
+
+  // Limpiar análisis IA cuando cambia el nodo seleccionado
+  useEffect(() => {
+    setAiAnalysis({ loading: false, result: null, error: null });
+  }, [selectedNode]);
 
   // Motor de Significado: Interpretación del nodo seleccionado
   const nodeInterpretation = useMemo<NodeInterpretation | null>(() => {
@@ -708,6 +748,56 @@ function Scene3D() {
                 {nodeInterpretation.urgency === 'medium' && 'Monitorear activamente'}
               </div>
             )}
+
+            {/* Botón de Análisis IA */}
+            <div className="mt-4 pt-4 border-t border-slate-700">
+              <button
+                onClick={() => analyzeNodeWithAI(selectedNode)}
+                disabled={aiAnalysis.loading}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-700 hover:to-cyan-700 text-white rounded-lg font-medium transition-all disabled:opacity-50"
+              >
+                {aiAnalysis.loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Analizando con IA...
+                  </>
+                ) : (
+                  <>
+                    <Brain className="w-4 h-4" />
+                    Análisis IA Profundo
+                  </>
+                )}
+              </button>
+
+              {/* Resultado del análisis IA */}
+              {aiAnalysis.result && (
+                <div className="mt-3 p-3 bg-purple-950/30 border border-purple-500/30 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Brain className="w-4 h-4 text-purple-400" />
+                    <span className="text-sm font-semibold text-purple-300">Diagnóstico IA</span>
+                  </div>
+                  <p className="text-sm text-slate-300 mb-2">{aiAnalysis.result.diagnosis}</p>
+                  <div className="flex gap-2 mb-2">
+                    <span className="text-xs px-2 py-0.5 bg-cyan-500/20 text-cyan-400 rounded-full">
+                      Coherencia: {(aiAnalysis.result.coherence * 100).toFixed(0)}%
+                    </span>
+                    <span className="text-xs px-2 py-0.5 bg-yellow-500/20 text-yellow-400 rounded-full">
+                      Energía: {(aiAnalysis.result.energy * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                  <p className="text-xs text-purple-300/80 italic">{aiAnalysis.result.recommendation}</p>
+                </div>
+              )}
+
+              {aiAnalysis.error && (
+                <div className="mt-3 p-3 bg-red-950/30 border border-red-500/30 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-400" />
+                    <span className="text-sm text-red-300">{aiAnalysis.error}</span>
+                  </div>
+                </div>
+              )}
+            </div>
           </Card>
         </div>
       )}

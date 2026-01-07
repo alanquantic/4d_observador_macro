@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { createSnapshotIfChanged } from '@/lib/snapshotService';
 
 export async function GET(request: NextRequest) {
   try {
@@ -51,6 +52,19 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    // Crear snapshot automático de la nueva relación
+    await createSnapshotIfChanged({
+      userId,
+      nodeId: `relationship_${relationship.id}`,
+      nodeType: 'relationship',
+      nodeLabel: relationship.name,
+      energy: Math.min(1, Math.max(0.1, (data.connectionQuality || 5) / 10)),
+      coherence: Math.min(1, Math.max(0.1, (data.importance || 5) / 10)),
+      connections: 1,
+      triggerType: 'create',
+      triggerReason: 'Relación creada',
+    });
+
     return NextResponse.json(relationship);
   } catch (error) {
     console.error('Error creando relación:', error);
@@ -82,6 +96,19 @@ export async function PUT(request: NextRequest) {
     const relationship = await prisma.relationship.update({
       where: { id },
       data: updateData
+    });
+
+    // Crear snapshot automático si hay cambios significativos
+    await createSnapshotIfChanged({
+      userId: session.user.id,
+      nodeId: `relationship_${relationship.id}`,
+      nodeType: 'relationship',
+      nodeLabel: relationship.name,
+      energy: Math.min(1, Math.max(0.1, relationship.connectionQuality / 10)),
+      coherence: Math.min(1, Math.max(0.1, relationship.importance / 10)),
+      connections: 1,
+      triggerType: 'update',
+      triggerReason: 'Relación actualizada',
     });
 
     return NextResponse.json(relationship);
