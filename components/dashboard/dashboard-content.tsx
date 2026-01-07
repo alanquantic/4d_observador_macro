@@ -18,7 +18,8 @@ import {
   Settings,
   BookOpen,
   Box,
-  Maximize2
+  Maximize2,
+  Crosshair
 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import { CoherenceMeters } from './coherence-meters';
@@ -29,6 +30,9 @@ import { RelationshipsMap } from './relationships-map';
 import { SynchronicityTracker } from './synchronicity-tracker';
 import { AIAnalysis } from './ai-analysis';
 import GameBoard from './game-board';
+import { DecisionMode } from './DecisionMode';
+import { NodeEvolution } from './NodeEvolution';
+import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -43,6 +47,32 @@ export function DashboardContent() {
     manifestations: [],
     entries: [],
   });
+  const [showDecisionMode, setShowDecisionMode] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingChecked, setOnboardingChecked] = useState(false);
+
+  // Verificar estado del onboarding
+  useEffect(() => {
+    const checkOnboarding = async () => {
+      try {
+        const response = await fetch('/api/user/onboarding');
+        if (response.ok) {
+          const data = await response.json();
+          if (!data.onboarding?.completed) {
+            setShowOnboarding(true);
+          }
+        }
+      } catch (error) {
+        console.error('Error checking onboarding:', error);
+      } finally {
+        setOnboardingChecked(true);
+      }
+    };
+
+    if (session) {
+      checkOnboarding();
+    }
+  }, [session]);
 
   // Cargar datos para el tablero de juego
   useEffect(() => {
@@ -124,7 +154,9 @@ export function DashboardContent() {
 
   const navigationItems = [
     { name: 'Vista General', icon: Home, action: () => window.scrollTo({ top: 0, behavior: 'smooth' }), current: true },
-    { name: 'Tablero 3D', icon: Box, action: () => router.push('/tablero-3d'), current: false, highlight: true },
+    { name: 'Modo Decisión', icon: Crosshair, action: () => setShowDecisionMode(true), current: false, highlight: true, badge: 'CEO' },
+    { name: 'Tablero 3D', icon: Box, action: () => router.push('/tablero-3d'), current: false, highlight: true, badge: '3D' },
+    { name: 'Geometría Wolcoff', icon: Sparkles, action: () => router.push('/wolcoff'), current: false, highlight: true, badge: 'NEW' },
     { name: 'Proyectos', icon: Target, action: () => scrollToSection('projects-panel'), current: false },
     { name: 'Relaciones', icon: Users, action: () => scrollToSection('relationships-map'), current: false },
     { name: 'Timeline', icon: Calendar, action: () => scrollToSection('timeline-viewer'), current: false },
@@ -135,6 +167,21 @@ export function DashboardContent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-black via-slate-900 to-purple-900/20 overflow-x-hidden">
+      {/* Onboarding Wizard */}
+      {showOnboarding && onboardingChecked && (
+        <OnboardingWizard 
+          onComplete={() => {
+            setShowOnboarding(false);
+            router.push('/tablero-3d');
+          }}
+          onSkip={() => setShowOnboarding(false)}
+        />
+      )}
+
+      {/* Modal de Modo Decisión */}
+      {showDecisionMode && (
+        <DecisionMode onClose={() => setShowDecisionMode(false)} />
+      )}
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div 
@@ -194,9 +241,15 @@ export function DashboardContent() {
               >
                 <item.icon className="h-5 w-5" />
                 <span className="text-sm font-medium">{item.name}</span>
-                {(item as any).highlight && (
-                  <span className="ml-auto text-xs bg-cyan-500/30 px-2 py-0.5 rounded-full border border-cyan-500/50">
-                    3D
+                {(item as any).badge && (
+                  <span className={`ml-auto text-xs px-2 py-0.5 rounded-full border ${
+                    (item as any).badge === 'CEO' 
+                      ? 'bg-orange-500/30 border-orange-500/50 text-orange-300'
+                      : (item as any).badge === 'NEW'
+                      ? 'bg-green-500/30 border-green-500/50 text-green-300'
+                      : 'bg-cyan-500/30 border-cyan-500/50 text-cyan-300'
+                  }`}>
+                    {(item as any).badge}
                   </span>
                 )}
               </button>
@@ -276,35 +329,75 @@ export function DashboardContent() {
                 </p>
               </div>
               
-              {/* Botón prominente para acceder al Tablero 3D */}
-              <Card className="mb-6 bg-gradient-to-r from-cyan-500/10 via-purple-500/10 to-pink-500/10 border-2 border-cyan-500/50 backdrop-blur-sm overflow-hidden relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 via-purple-500/5 to-pink-500/5 animate-pulse"></div>
-                <CardContent className="p-6 relative">
-                  <div className="flex items-center justify-between flex-wrap gap-4">
+              {/* Botones prominentes: Modo Decisión y Tablero 3D */}
+              <div className="grid md:grid-cols-2 gap-4 mb-6">
+                {/* Modo Decisión - CEO */}
+                <Card className="bg-gradient-to-r from-orange-500/10 via-red-500/10 to-yellow-500/10 border-2 border-orange-500/50 backdrop-blur-sm overflow-hidden relative hover:border-orange-400/70 transition-colors cursor-pointer group"
+                  onClick={() => setShowDecisionMode(true)}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-orange-500/5 via-red-500/5 to-yellow-500/5 group-hover:opacity-75 transition-opacity"></div>
+                  <CardContent className="p-6 relative">
                     <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 bg-gradient-to-br from-cyan-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/50">
-                        <Box className="h-8 w-8 text-white" />
+                      <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/50">
+                        <Crosshair className="h-7 w-7 text-white" />
                       </div>
-                      <div>
-                        <h3 className="text-2xl font-bold bg-gradient-to-r from-cyan-300 to-purple-300 bg-clip-text text-transparent mb-1">
-                          Tablero 3D Cuántico
-                        </h3>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="text-xl font-bold bg-gradient-to-r from-orange-300 to-yellow-300 bg-clip-text text-transparent">
+                            Modo Decisión
+                          </h3>
+                          <span className="text-xs bg-orange-500/30 text-orange-300 px-2 py-0.5 rounded-full border border-orange-500/50">
+                            CEO
+                          </span>
+                        </div>
                         <p className="text-slate-300 text-sm">
-                          Explora tu realidad con profundidad real, vista cenital y parallax auténtico
+                          Resumen ejecutivo en 5 minutos
                         </p>
                       </div>
+                      <Button
+                        size="sm"
+                        className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white shadow-lg shadow-orange-500/30 border-0"
+                      >
+                        Abrir
+                      </Button>
                     </div>
-                    <Button
-                      onClick={() => router.push('/tablero-3d')}
-                      size="lg"
-                      className="bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 text-white shadow-lg shadow-cyan-500/30 border-0"
-                    >
-                      <Maximize2 className="mr-2 h-5 w-5" />
-                      Abrir Vista 3D
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+
+                {/* Tablero 3D */}
+                <Card className="bg-gradient-to-r from-cyan-500/10 via-purple-500/10 to-pink-500/10 border-2 border-cyan-500/50 backdrop-blur-sm overflow-hidden relative hover:border-cyan-400/70 transition-colors cursor-pointer group"
+                  onClick={() => router.push('/tablero-3d')}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 via-purple-500/5 to-pink-500/5 group-hover:opacity-75 transition-opacity"></div>
+                  <CardContent className="p-6 relative">
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 bg-gradient-to-br from-cyan-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/50">
+                        <Box className="h-7 w-7 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="text-xl font-bold bg-gradient-to-r from-cyan-300 to-purple-300 bg-clip-text text-transparent">
+                            Tablero 3D Cuántico
+                          </h3>
+                          <span className="text-xs bg-cyan-500/30 text-cyan-300 px-2 py-0.5 rounded-full border border-cyan-500/50">
+                            3D
+                          </span>
+                        </div>
+                        <p className="text-slate-300 text-sm">
+                          Visualización geométrica dimensional
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        className="bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 text-white shadow-lg shadow-cyan-500/30 border-0"
+                      >
+                        <Maximize2 className="mr-1 h-4 w-4" />
+                        Abrir
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
               
               <GameBoard recentData={gameBoardData} />
             </div>
@@ -319,6 +412,11 @@ export function DashboardContent() {
               {/* Timeline */}
               <div data-testid="timeline-viewer" className="w-full">
                 <TimelineViewer />
+              </div>
+
+              {/* Evolución de Nodos */}
+              <div data-testid="node-evolution" className="w-full">
+                <NodeEvolution />
               </div>
 
               {/* Proyectos */}

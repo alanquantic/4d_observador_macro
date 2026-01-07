@@ -44,6 +44,8 @@ model User {
   emailVerified DateTime?
   image         String?
   role          String?   @default("user")
+  onboardingCompleted Boolean @default(false)
+  onboardingStep      Int     @default(0)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -59,6 +61,7 @@ model User {
   relationships   Relationship[]
   manifestations  Manifestation[]
   metrics         UserMetrics[]
+  nodeSnapshots   NodeSnapshot[]
 }
 
 model VerificationToken {
@@ -360,4 +363,39 @@ model UserMetrics {
 
   @@unique([userId, date])
   @@index([userId, date])
+}
+
+// Timeline con Memoria - Snapshots de nodos
+model NodeSnapshot {
+  id            String   @id @default(cuid())
+  userId        String
+  
+  // Identificación del nodo
+  nodeId        String   // ID del nodo (project_xxx, relationship_xxx, etc.)
+  nodeType      String   // project, relationship, intention, manifestation
+  nodeLabel     String   // Nombre/título del nodo
+  
+  // Métricas capturadas
+  energy        Float    // 0-1 energía en ese momento
+  coherence     Float    // 0-1 coherencia en ese momento
+  connections   Int      // Número de conexiones
+  
+  // Contexto
+  triggerType   String   // auto, manual, threshold (qué disparó el snapshot)
+  triggerReason String?  // Razón del snapshot (ej: "Energía cambió >15%")
+  
+  // Estado interpretado
+  statusLabel   String?  // Flujo, Fricción, etc.
+  recommendation String? // Recomendación en ese momento
+  
+  // Metadatos adicionales
+  metadata      Json?    // Datos adicionales específicos del tipo de nodo
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+
+  @@index([userId, nodeId])
+  @@index([userId, nodeType])
+  @@index([userId, createdAt])
 }

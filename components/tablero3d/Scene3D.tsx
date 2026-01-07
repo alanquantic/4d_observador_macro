@@ -1,14 +1,15 @@
 
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import * as BABYLON from '@babylonjs/core';
 import { Node3D } from './Node3D';
 import { Link3D } from './Link3D';
 import { Grid3D } from './Grid3D';
 import { Particles3D } from './Particles3D';
 import { Card } from '@/components/ui/card';
-import { X, Filter, Eye, Layers, Target, Sparkles, Users, Briefcase, Lightbulb, Loader2, RefreshCw, AlertCircle } from 'lucide-react';
+import { X, Filter, Eye, Layers, Target, Sparkles, Users, Briefcase, Lightbulb, Loader2, RefreshCw, AlertCircle, TrendingUp, TrendingDown, Zap, ArrowRight } from 'lucide-react';
+import { interpretNode, NodeInterpretation } from '@/lib/nodeInterpreter';
 
 interface NodeData {
   id: string;
@@ -112,6 +113,17 @@ function Scene3D() {
   const [error, setError] = useState<string | null>(null);
   const [usingRealData, setUsingRealData] = useState(false);
   const [breakdown, setBreakdown] = useState<Record<string, number>>({});
+  const [systemCoherence, setSystemCoherence] = useState<number>(0);
+
+  // Motor de Significado: Interpretación del nodo seleccionado
+  const nodeInterpretation = useMemo<NodeInterpretation | null>(() => {
+    if (!selectedNode || nodesData.length === 0) return null;
+    return interpretNode(
+      { ...selectedNode, coherence: selectedNode.metadata?.coherence },
+      linksData,
+      systemCoherence
+    );
+  }, [selectedNode, linksData, nodesData, systemCoherence]);
 
   // Calcular centro de los nodos para centrar la cámara
   const calculateCenter = useCallback((nodes: NodeData[]) => {
@@ -156,6 +168,9 @@ function Scene3D() {
         setUsingRealData(true);
         if (data.stats.breakdown) {
           setBreakdown(data.stats.breakdown);
+        }
+        if (data.stats.coherence?.overall) {
+          setSystemCoherence(data.stats.coherence.overall / 100);
         }
       } else {
         // Si no hay datos reales, usar datos de ejemplo
@@ -540,15 +555,28 @@ function Scene3D() {
         </Card>
       </div>
 
-      {/* Panel de información del nodo seleccionado */}
-      {selectedNode && (
-        <div className="absolute top-20 right-6 z-40 w-80 animate-in slide-in-from-right">
-          <Card className="bg-black/90 backdrop-blur-md border-cyan-500/50 p-6 shadow-2xl shadow-cyan-500/20">
+      {/* Panel de información del nodo seleccionado - MOTOR DE SIGNIFICADO */}
+      {selectedNode && nodeInterpretation && (
+        <div className="absolute top-20 right-6 z-40 w-96 animate-in slide-in-from-right">
+          <Card className="bg-black/95 backdrop-blur-md border-cyan-500/50 p-6 shadow-2xl shadow-cyan-500/20">
+            {/* Header con estado */}
             <div className="flex items-start justify-between mb-4">
               <div>
-                <h3 className="text-xl font-bold text-white mb-1">{selectedNode.label}</h3>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-2xl">{nodeInterpretation.statusEmoji}</span>
+                  <h3 className="text-xl font-bold text-white">{selectedNode.label}</h3>
+                </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: selectedNode.color }} />
+                  <div 
+                    className="px-2 py-0.5 rounded-full text-xs font-bold"
+                    style={{ 
+                      backgroundColor: `${nodeInterpretation.statusColor}20`,
+                      color: nodeInterpretation.statusColor,
+                      border: `1px solid ${nodeInterpretation.statusColor}50`
+                    }}
+                  >
+                    {nodeInterpretation.statusLabel}
+                  </div>
                   <p className="text-xs text-slate-400 uppercase tracking-wider">
                     {NODE_TYPES.find(t => t.id === selectedNode.type)?.label || selectedNode.type}
                   </p>
@@ -562,48 +590,124 @@ function Scene3D() {
               </button>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-slate-400">Nivel de Energía</span>
-                  <span className="text-cyan-400 font-bold">{(selectedNode.energy * 100).toFixed(0)}%</span>
+            {/* Métricas principales */}
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="bg-slate-900/50 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-slate-400">Energía</span>
+                  <Zap className="w-3 h-3 text-yellow-400" />
                 </div>
-                <div className="h-3 bg-slate-800 rounded-full overflow-hidden">
+                <div className="flex items-end gap-1">
+                  <span className="text-2xl font-bold text-white">
+                    {(nodeInterpretation.metrics.energy * 100).toFixed(0)}
+                  </span>
+                  <span className="text-xs text-slate-500 mb-1">%</span>
+                </div>
+                <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden mt-1">
                   <div
                     className="h-full rounded-full transition-all duration-500"
                     style={{ 
-                      width: `${selectedNode.energy * 100}%`,
-                      background: `linear-gradient(90deg, ${selectedNode.color}, #8b5cf6)`
+                      width: `${nodeInterpretation.metrics.energy * 100}%`,
+                      backgroundColor: nodeInterpretation.statusColor
                     }}
                   />
                 </div>
               </div>
-
-              <div className="grid grid-cols-3 gap-3 pt-3 border-t border-slate-700">
-                <div className="text-center">
-                  <p className="text-xs text-slate-500 mb-1">Altura</p>
-                  <p className="text-white font-mono text-sm">{selectedNode.z.toFixed(0)}</p>
+              
+              <div className="bg-slate-900/50 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-slate-400">Coherencia</span>
+                  {nodeInterpretation.metrics.coherence >= 0.6 ? (
+                    <TrendingUp className="w-3 h-3 text-green-400" />
+                  ) : (
+                    <TrendingDown className="w-3 h-3 text-red-400" />
+                  )}
                 </div>
-                <div className="text-center">
-                  <p className="text-xs text-slate-500 mb-1">Tamaño</p>
-                  <p className="text-white font-mono text-sm">{selectedNode.size.toFixed(1)}</p>
+                <div className="flex items-end gap-1">
+                  <span className="text-2xl font-bold text-white">
+                    {(nodeInterpretation.metrics.coherence * 100).toFixed(0)}
+                  </span>
+                  <span className="text-xs text-slate-500 mb-1">%</span>
                 </div>
-                <div className="text-center">
-                  <p className="text-xs text-slate-500 mb-1">Pos X/Y</p>
-                  <p className="text-white font-mono text-sm">{selectedNode.x}/{selectedNode.y}</p>
+                <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden mt-1">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{ 
+                      width: `${nodeInterpretation.metrics.coherence * 100}%`,
+                      backgroundColor: nodeInterpretation.metrics.coherence >= 0.6 ? '#00FF88' : '#FF4500'
+                    }}
+                  />
                 </div>
               </div>
+            </div>
 
-              <div className="pt-3 border-t border-slate-700">
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Este nodo representa <span className="text-white font-medium">{selectedNode.label}</span> en tu 
-                  mapa dimensional con una intensidad energética de{' '}
-                  <span style={{ color: selectedNode.color }} className="font-bold">{(selectedNode.energy * 100).toFixed(0)}%</span>.
-                  {selectedNode.energy >= 0.9 && ' ¡Excelente nivel de energía!'}
-                  {selectedNode.energy < 0.7 && ' Considera enfocar más atención aquí.'}
+            {/* Stats secundarios */}
+            <div className="grid grid-cols-3 gap-2 mb-4 text-center">
+              <div className="bg-slate-900/30 rounded-lg p-2">
+                <p className="text-xs text-slate-500">Conexiones</p>
+                <p className="text-lg font-bold text-cyan-400">{nodeInterpretation.metrics.connections}</p>
+              </div>
+              <div className="bg-slate-900/30 rounded-lg p-2">
+                <p className="text-xs text-slate-500">Fuerza</p>
+                <p className="text-lg font-bold text-purple-400">
+                  {(nodeInterpretation.metrics.avgLinkStrength * 100).toFixed(0)}%
+                </p>
+              </div>
+              <div className="bg-slate-900/30 rounded-lg p-2">
+                <p className="text-xs text-slate-500">Score</p>
+                <p className="text-lg font-bold text-white">
+                  {nodeInterpretation.metrics.score.toFixed(1)}
                 </p>
               </div>
             </div>
+
+            {/* Recomendación - MOTOR DE SIGNIFICADO */}
+            <div 
+              className="rounded-lg p-4 mb-4"
+              style={{ 
+                backgroundColor: `${nodeInterpretation.statusColor}10`,
+                border: `1px solid ${nodeInterpretation.statusColor}30`
+              }}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <ArrowRight className="w-4 h-4" style={{ color: nodeInterpretation.statusColor }} />
+                <span className="text-sm font-semibold text-white">Recomendación</span>
+              </div>
+              <p className="text-sm text-slate-300 leading-relaxed">
+                {nodeInterpretation.recommendation}
+              </p>
+            </div>
+
+            {/* Acción sugerida */}
+            <div className="flex items-center justify-between pt-3 border-t border-slate-700">
+              <span className="text-xs text-slate-400">Acción sugerida</span>
+              <div 
+                className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${
+                  nodeInterpretation.action === 'Mantener' ? 'bg-green-500/20 text-green-400' :
+                  nodeInterpretation.action === 'Invertir' ? 'bg-cyan-500/20 text-cyan-400' :
+                  nodeInterpretation.action === 'Delegar' ? 'bg-blue-500/20 text-blue-400' :
+                  nodeInterpretation.action === 'Corregir' ? 'bg-yellow-500/20 text-yellow-400' :
+                  nodeInterpretation.action === 'Reformular' ? 'bg-orange-500/20 text-orange-400' :
+                  'bg-red-500/20 text-red-400'
+                }`}
+              >
+                {nodeInterpretation.action}
+              </div>
+            </div>
+
+            {/* Indicador de urgencia */}
+            {nodeInterpretation.urgency !== 'low' && (
+              <div className={`mt-3 px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2 ${
+                nodeInterpretation.urgency === 'critical' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
+                nodeInterpretation.urgency === 'high' ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' :
+                'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+              }`}>
+                <AlertCircle className="w-3 h-3" />
+                {nodeInterpretation.urgency === 'critical' && 'Requiere atención inmediata'}
+                {nodeInterpretation.urgency === 'high' && 'Prioridad alta'}
+                {nodeInterpretation.urgency === 'medium' && 'Monitorear activamente'}
+              </div>
+            )}
           </Card>
         </div>
       )}
