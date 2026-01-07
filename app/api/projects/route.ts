@@ -107,7 +107,8 @@ export async function PUT(request: NextRequest) {
 
     // Crear snapshot automático si hay cambios significativos
     const energy = ((project.energyInvested || 5) + (project.impactLevel || 5)) / 20;
-    const coherence = project.coherenceScore ? project.coherenceScore / 100 : energy;
+    // Usar progress y satisfactionLevel para calcular coherencia
+    const coherence = ((project.progress || 0) / 100 + (project.satisfactionLevel || 5) / 10) / 2;
     await createSnapshotIfChanged({
       userId: session.user.id,
       nodeId: `project_${project.id}`,

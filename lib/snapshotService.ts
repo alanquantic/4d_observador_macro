@@ -109,8 +109,8 @@ export async function createFullSnapshot(userId: string): Promise<number> {
 
     // Snapshot de proyectos
     for (const project of projects) {
-      const energy = (project.energyInvested + project.impactLevel) / 20;
-      const coherence = project.coherenceScore ? project.coherenceScore / 100 : energy;
+      const energy = ((project.energyInvested || 5) + (project.impactLevel || 5)) / 20;
+      const coherence = ((project.progress || 0) / 100 + (project.satisfactionLevel || 5) / 10) / 2;
       
       const created = await createSnapshotIfChanged({
         userId,
