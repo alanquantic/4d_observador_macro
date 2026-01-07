@@ -182,7 +182,7 @@ export async function GET() {
       const pos = distributeInCircle(index, Math.max(manifestations.length, 1), manifestationRadius, 10, 5);
       const progress = manifestation.manifestationStage / 100;
       const energy = Math.min(1, Math.max(0.1, progress));
-      const coherence = manifestation.alignmentScore ? manifestation.alignmentScore / 100 : energy;
+      const coherence = manifestation.impactLevel ? manifestation.impactLevel / 10 : energy;
       
       nodes.push({
         id: `manifestation_${manifestation.id}`,
