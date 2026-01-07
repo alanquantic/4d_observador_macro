@@ -367,7 +367,6 @@ export function DecisionMode({ onClose }: DecisionModeProps) {
           </div>
         </div>
       </div>
-      </div>
     </div>
   );
 }
