@@ -112,8 +112,9 @@ export function DecisionMode({ onClose }: DecisionModeProps) {
   // Loading state
   if (loading) {
     return (
-      <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center">
-        <div className="text-center space-y-4">
+      <div className="fixed inset-0 z-[100] flex items-center justify-center">
+        <div className="fixed inset-0 bg-black/95 backdrop-blur-sm" onClick={onClose} />
+        <div className="relative z-10 text-center space-y-4">
           <div className="relative">
             <div className="w-20 h-20 border-4 border-cyan-500/30 rounded-full animate-pulse" />
             <Loader2 className="w-10 h-10 text-cyan-400 animate-spin absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
@@ -128,8 +129,9 @@ export function DecisionMode({ onClose }: DecisionModeProps) {
   // Error state
   if (error) {
     return (
-      <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center">
-        <Card className="bg-slate-900 border-red-500/50 p-8 max-w-md">
+      <div className="fixed inset-0 z-[100] flex items-center justify-center">
+        <div className="fixed inset-0 bg-black/95 backdrop-blur-sm" onClick={onClose} />
+        <Card className="relative z-10 bg-slate-900 border-red-500/50 p-8 max-w-md">
           <div className="text-center space-y-4">
             <AlertTriangle className="w-12 h-12 text-red-400 mx-auto" />
             <h2 className="text-xl font-bold text-white">Error al cargar</h2>
@@ -159,8 +161,14 @@ export function DecisionMode({ onClose }: DecisionModeProps) {
   const actionStyle = ACTION_STYLES[data.globalRecommendation.action] || ACTION_STYLES.Mantener;
 
   return (
-    <div className="fixed inset-0 bg-black/98 z-50 overflow-auto">
-      <div className="min-h-screen p-4 md:p-6 lg:p-8">
+    <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-auto">
+      {/* Backdrop */}
+      <div 
+        className="fixed inset-0 bg-black/95 backdrop-blur-sm" 
+        onClick={onClose}
+      />
+      {/* Modal Content */}
+      <div className="relative z-10 w-full min-h-screen p-4 md:p-6 lg:p-8">
         <div className="max-w-5xl mx-auto">
           {/* Header */}
           <div className="flex justify-between items-start mb-8">
@@ -244,7 +252,12 @@ export function DecisionMode({ onClose }: DecisionModeProps) {
                     style={{ backgroundColor: TYPE_COLORS[key] || '#888' }}
                   />
                   <p className="text-2xl font-bold text-white">{value}</p>
-                  <p className="text-xs text-slate-500 capitalize">{TYPE_LABELS[key] || key}s</p>
+                  <p className="text-xs text-slate-500 capitalize">
+                    {key === 'projects' ? 'Proyectos' : 
+                     key === 'relationships' ? 'Relaciones' : 
+                     key === 'intentions' ? 'Intenciones' : 
+                     key === 'manifestations' ? 'Manifestaciones' : key}
+                  </p>
                 </div>
               ))}
             </div>
@@ -353,6 +366,7 @@ export function DecisionMode({ onClose }: DecisionModeProps) {
             </button>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );
