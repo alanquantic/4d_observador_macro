@@ -129,8 +129,8 @@ export async function createFullSnapshot(userId: string): Promise<number> {
 
     // Snapshot de relaciones
     for (const relationship of relationships) {
-      const energy = relationship.connectionQuality / 10;
-      const coherence = relationship.importance / 10;
+      const energy = (relationship.connectionQuality ?? 5) / 10;
+      const coherence = (relationship.importance ?? 5) / 10;
       
       const created = await createSnapshotIfChanged({
         userId,
@@ -149,9 +149,13 @@ export async function createFullSnapshot(userId: string): Promise<number> {
 
     // Snapshot de intenciones
     for (const intention of intentions) {
-      const energy = intention.practiceFrequency === 'daily' ? 0.9 : 
-                     intention.practiceFrequency === 'weekly' ? 0.6 : 0.3;
-      const coherence = intention.alignmentScore / 100;
+      // Usar frequency en lugar de practiceFrequency
+      const energy = intention.frequency === 'daily' ? 0.9 : 
+                     intention.frequency === 'weekly' ? 0.6 : 0.3;
+      // Calcular coherencia basada en streak/total
+      const fulfillmentRate = intention.totalExpectedDays 
+        ? intention.totalFulfilledDays / intention.totalExpectedDays 
+        : 0.5;
       
       const created = await createSnapshotIfChanged({
         userId,
@@ -159,7 +163,7 @@ export async function createFullSnapshot(userId: string): Promise<number> {
         nodeType: 'intention',
         nodeLabel: intention.title,
         energy: Math.min(1, Math.max(0.1, energy)),
-        coherence: Math.min(1, Math.max(0.1, coherence)),
+        coherence: Math.min(1, Math.max(0.1, fulfillmentRate)),
         connections: 1,
         triggerType: 'onboarding',
         triggerReason: 'Snapshot inicial de onboarding',
@@ -170,8 +174,8 @@ export async function createFullSnapshot(userId: string): Promise<number> {
 
     // Snapshot de manifestaciones
     for (const manifestation of manifestations) {
-      const energy = manifestation.manifestationStage / 100;
-      const coherence = manifestation.impactLevel / 10;
+      const energy = (manifestation.manifestationStage ?? 0) / 100;
+      const coherence = (manifestation.impactLevel ?? 5) / 10;
       
       const created = await createSnapshotIfChanged({
         userId,
