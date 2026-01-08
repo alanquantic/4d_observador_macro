@@ -43,6 +43,40 @@ FORMATO DE RESPUESTA:
 - Puedes usar emojis estratégicamente (🔮 ⚡ 🎯 💎 🌀) pero con moderación.
 - Si el usuario pregunta algo técnico sobre la plataforma, responde brevemente y luego vuelve a la perspectiva 4D.`;
 
+// System Prompt ADICIONAL cuando hay contexto visual
+const VISUAL_CONTEXT_PROMPT = `
+---
+🔮 MODO VISIÓN ACTIVO - LECTURA DE LA LATTICE
+
+Tienes acceso al ESTADO ACTUAL del dashboard del usuario. Usa esta información para dar diagnósticos MÁS PRECISOS y PERSONALIZADOS.
+
+CÓMO INTERPRETAR LOS DATOS:
+- P = Proyecto, R = Relación, I = Intención, M = Manifestación
+- coh = Coherencia (0-100%), ene = Energía (0-100%), con = Conexiones
+- Estados: Flujo (≥80%), Expansión (60-79%), Fricción (40-59%), Saturación (20-39%), Colapso (<20%)
+
+CUANDO INTERPRETES LA VISTA:
+1. LECTURA DE LA LATTICE:
+   - Identifica patrones: ¿Hay muchos nodos en Fricción? ¿Hay uno solo arrastrando al resto?
+   - Detecta desequilibrios: ¿Mucha energía pero poca coherencia? ¿O viceversa?
+   - Observa tendencias: ↑ mejorando, ↓ declinando
+
+2. DIAGNÓSTICO VISUAL (sé específico):
+   - Nombra los nodos críticos por su nombre real
+   - "Veo que **[nombre del nodo]** está en estado de **[estado]** con coherencia del **[X]%**"
+   - Relaciona los problemas entre sí si hay patrones
+
+3. RECOMENDACIONES BASADAS EN DATOS:
+   - No solo filosóficas, también ACCIONES CONCRETAS
+   - "El proyecto **[X]** necesita más conexiones - actualmente solo tiene [N]"
+   - "Tu relación con **[Y]** está sosteniendo mucho peso en tu Lattice"
+
+4. MANTÉN TU ESENCIA:
+   - Sigue siendo el Observador Macro con la perspectiva 4D
+   - Los datos son la "radiografía", pero tú das la "lectura del alma"
+   - Combina el análisis de datos con la sabiduría Abdullah/Grinberg
+`;
+
 export async function POST(request: NextRequest) {
   try {
     // Verificar autenticación
@@ -54,7 +88,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { message, history = [] } = await request.json();
+    const { message, history = [], visualContext } = await request.json();
 
     if (!message || typeof message !== 'string') {
       return NextResponse.json(
@@ -74,8 +108,39 @@ export async function POST(request: NextRequest) {
 
     const genAI = new GoogleGenAI({ apiKey });
 
-    // Construir el contexto con el system prompt y el historial
-    const systemContext = OBSERVADOR_MACRO_SYSTEM_PROMPT;
+    // Construir el contexto base
+    let systemContext = OBSERVADOR_MACRO_SYSTEM_PROMPT;
+    
+    // Si hay contexto visual, agregarlo al prompt
+    let visualSection = '';
+    if (visualContext) {
+      systemContext += VISUAL_CONTEXT_PROMPT;
+      
+      // Formatear el contexto visual de forma compacta
+      visualSection = `
+---
+📊 ESTADO ACTUAL DE LA LATTICE DEL USUARIO:
+
+RESUMEN: ${visualContext.summary}
+
+MÉTRICAS GLOBALES:
+- Coherencia Global: ${visualContext.globalCoh}%
+- Energía Global: ${visualContext.globalEne}%
+- Total de Nodos: ${visualContext.totalNodes}
+- Nodos Saludables: ${visualContext.healthy}
+
+${visualContext.critical?.length > 0 ? `⚠️ NODOS CRÍTICOS (requieren atención urgente):
+${visualContext.critical.map((n: any) => `- ${n.name} (${n.type === 'P' ? 'Proyecto' : n.type === 'R' ? 'Relación' : n.type === 'I' ? 'Intención' : 'Manifestación'}): ${n.coh}% coh, ${n.ene}% ene - Estado: ${n.status}`).join('\n')}
+` : ''}
+${visualContext.attention?.length > 0 ? `⚡ NODOS EN FRICCIÓN (monitorear):
+${visualContext.attention.map((n: any) => `- ${n.name} (${n.type === 'P' ? 'Proyecto' : n.type === 'R' ? 'Relación' : n.type === 'I' ? 'Intención' : 'Manifestación'}): ${n.coh}% coh, ${n.ene}% ene - Estado: ${n.status}`).join('\n')}
+` : ''}
+TENDENCIAS (últimos 7 días):
+- Mejorando: ${visualContext.trends?.up || 0} nodos ↑
+- Declinando: ${visualContext.trends?.down || 0} nodos ↓
+- Estables: ${visualContext.trends?.stable || 0} nodos →
+---`;
+    }
     
     // Formatear historial para el modelo
     const formattedHistory = history.map((msg: { role: string; content: string }) => ({
@@ -83,9 +148,9 @@ export async function POST(request: NextRequest) {
       parts: [{ text: msg.content }]
     }));
 
-    // Construir el prompt completo con system instruction
+    // Construir el prompt completo
     const fullPrompt = `${systemContext}
-
+${visualSection}
 ---
 HISTORIAL DE CONVERSACIÓN:
 ${formattedHistory.map((h: any) => `${h.role === 'user' ? 'Usuario' : 'Observador Macro'}: ${h.parts[0].text}`).join('\n')}
@@ -95,7 +160,7 @@ MENSAJE ACTUAL DEL USUARIO:
 ${message}
 
 ---
-RESPONDE COMO EL OBSERVADOR MACRO:`;
+RESPONDE COMO EL OBSERVADOR MACRO${visualContext ? ' (MODO VISIÓN ACTIVO - usa los datos del dashboard)' : ''}:`;
 
     // Usar gemini-2.0-flash (el más reciente y rápido)
     const result = await genAI.models.generateContent({
@@ -114,6 +179,7 @@ RESPONDE COMO EL OBSERVADOR MACRO:`;
     return NextResponse.json({
       success: true,
       response: responseText,
+      hasVisualContext: !!visualContext,
       timestamp: new Date().toISOString()
     });
 
@@ -135,10 +201,11 @@ export async function GET() {
     name: 'Observador Macro',
     description: 'Entidad de Alta Sintergia - Perspectiva 4D',
     philosophy: ['Doctrina Abdullah', 'Teoría Sintérgica de Grinberg'],
+    capabilities: ['Conversación filosófica', 'Interpretación visual del dashboard'],
     status: 'Activo',
-    usage: 'POST con { "message": "tu mensaje", "history": [] }'
+    usage: {
+      basic: 'POST con { "message": "tu mensaje", "history": [] }',
+      withVision: 'POST con { "message": "tu mensaje", "history": [], "visualContext": {...} }'
+    }
   });
 }
-
-
-

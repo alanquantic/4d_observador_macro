@@ -11,7 +11,9 @@ import {
   Minimize2,
   Maximize2,
   Trash2,
-  Eye
+  Eye,
+  Scan,
+  Activity
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -23,6 +25,22 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  hasVision?: boolean; // Indica si el mensaje usó contexto visual
+}
+
+interface VisualContext {
+  summary: string;
+  globalCoh: number;
+  globalEne: number;
+  totalNodes: number;
+  critical: any[];
+  attention: any[];
+  healthy: number;
+  trends: {
+    up: number;
+    down: number;
+    stable: number;
+  };
 }
 
 const INITIAL_MESSAGE: Message = {
@@ -45,6 +63,8 @@ export function ObservadorMacroChat() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
+  const [isLoadingVision, setIsLoadingVision] = useState(false);
+  const [visualContext, setVisualContext] = useState<VisualContext | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -72,14 +92,101 @@ export function ObservadorMacroChat() {
     }
   }, [isOpen]);
 
-  const sendMessage = useCallback(async () => {
+  // Función para obtener el contexto visual del dashboard
+  const fetchVisualContext = useCallback(async (): Promise<VisualContext | null> => {
+    try {
+      const response = await fetch('/api/dashboard/context');
+      if (!response.ok) return null;
+      const data = await response.json();
+      return data.success ? data.context : null;
+    } catch (error) {
+      console.error('Error obteniendo contexto visual:', error);
+      return null;
+    }
+  }, []);
+
+  // Función para interpretar la vista actual
+  const interpretView = useCallback(async () => {
+    if (isLoading || isLoadingVision) return;
+
+    setIsLoadingVision(true);
+    
+    // Mensaje del usuario indicando que quiere interpretación
+    const userMessage: Message = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: '👁️ Observador, interpreta mi Lattice actual. ¿Qué ves en mi tablero?',
+      timestamp: new Date(),
+      hasVision: true
+    };
+    
+    setMessages(prev => [...prev, userMessage]);
+
+    try {
+      // Obtener contexto visual
+      const context = await fetchVisualContext();
+      setVisualContext(context);
+
+      if (!context) {
+        throw new Error('No se pudo obtener el contexto visual');
+      }
+
+      // Preparar historial para la API
+      const history = messages
+        .filter(m => m.id !== 'welcome')
+        .map(m => ({
+          role: m.role,
+          content: m.content
+        }));
+
+      // Enviar al chat con contexto visual
+      const response = await fetch('/api/observador-macro/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: 'Analiza mi dashboard actual y dame tu interpretación de la Lattice. ¿Qué nodos necesitan atención? ¿Qué patrones ves? Dame tu diagnóstico desde la perspectiva 4D.',
+          history,
+          visualContext: context
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.response) {
+        const assistantMessage: Message = {
+          id: `assistant-${Date.now()}`,
+          role: 'assistant',
+          content: data.response,
+          timestamp: new Date(),
+          hasVision: true
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+      } else {
+        throw new Error(data.error || 'Error en la respuesta');
+      }
+    } catch (error) {
+      console.error('Error interpretando vista:', error);
+      const errorMessage: Message = {
+        id: `error-${Date.now()}`,
+        role: 'assistant',
+        content: '⚠️ No pude acceder a tu Lattice visual. Asegúrate de estar en el dashboard y tener datos en tu tablero.',
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoadingVision(false);
+    }
+  }, [isLoading, isLoadingVision, messages, fetchVisualContext]);
+
+  const sendMessage = useCallback(async (withVision: boolean = false) => {
     if (!input.trim() || isLoading) return;
 
     const userMessage: Message = {
       id: `user-${Date.now()}`,
       role: 'user',
       content: input.trim(),
-      timestamp: new Date()
+      timestamp: new Date(),
+      hasVision: withVision
     };
 
     setMessages(prev => [...prev, userMessage]);
@@ -87,6 +194,13 @@ export function ObservadorMacroChat() {
     setIsLoading(true);
 
     try {
+      // Si se solicita visión, obtener contexto
+      let context = null;
+      if (withVision) {
+        context = await fetchVisualContext();
+        setVisualContext(context);
+      }
+
       // Preparar historial para la API (excluir mensaje de bienvenida)
       const history = messages
         .filter(m => m.id !== 'welcome')
@@ -100,7 +214,8 @@ export function ObservadorMacroChat() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: userMessage.content,
-          history
+          history,
+          ...(context && { visualContext: context })
         })
       });
 
@@ -111,7 +226,8 @@ export function ObservadorMacroChat() {
           id: `assistant-${Date.now()}`,
           role: 'assistant',
           content: data.response,
-          timestamp: new Date()
+          timestamp: new Date(),
+          hasVision: data.hasVisualContext
         };
         setMessages(prev => [...prev, assistantMessage]);
         
@@ -133,12 +249,12 @@ export function ObservadorMacroChat() {
     } finally {
       setIsLoading(false);
     }
-  }, [input, isLoading, messages, isOpen]);
+  }, [input, isLoading, messages, isOpen, fetchVisualContext]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      sendMessage();
+      sendMessage(false);
     }
   };
 
@@ -225,6 +341,21 @@ export function ObservadorMacroChat() {
               </div>
               
               <div className="flex items-center gap-1">
+                {/* Botón Interpretar Vista */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={interpretView}
+                  disabled={isLoading || isLoadingVision}
+                  className="h-8 w-8 text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-50"
+                  title="Interpretar Vista Actual"
+                >
+                  {isLoadingVision ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Scan className="h-4 w-4" />
+                  )}
+                </Button>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -271,13 +402,20 @@ export function ObservadorMacroChat() {
                         "max-w-[85%] rounded-2xl px-4 py-3 text-sm",
                         message.role === 'user'
                           ? "bg-gradient-to-br from-purple-600 to-indigo-600 text-white rounded-br-md"
-                          : "bg-slate-800/80 border border-purple-500/20 text-slate-200 rounded-bl-md"
+                          : "bg-slate-800/80 border border-purple-500/20 text-slate-200 rounded-bl-md",
+                        message.hasVision && "ring-1 ring-cyan-500/30"
                       )}
                     >
                       {message.role === 'assistant' && (
                         <div className="flex items-center gap-1.5 mb-2 text-xs text-purple-400">
                           <Sparkles className="h-3 w-3" />
                           <span>Observador Macro</span>
+                          {message.hasVision && (
+                            <span className="ml-1 px-1.5 py-0.5 bg-cyan-500/20 text-cyan-400 rounded text-[10px] font-medium flex items-center gap-1">
+                              <Activity className="h-2.5 w-2.5" />
+                              Visión
+                            </span>
+                          )}
                         </div>
                       )}
                       <div 
@@ -285,9 +423,12 @@ export function ObservadorMacroChat() {
                         dangerouslySetInnerHTML={{ __html: formatMessage(message.content) }}
                       />
                       <div className={cn(
-                        "text-[10px] mt-2 opacity-50",
-                        message.role === 'user' ? 'text-right' : 'text-left'
+                        "text-[10px] mt-2 opacity-50 flex items-center gap-2",
+                        message.role === 'user' ? 'justify-end' : 'justify-start'
                       )}>
+                        {message.hasVision && message.role === 'user' && (
+                          <span className="text-cyan-400">👁️</span>
+                        )}
                         {message.timestamp.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
                       </div>
                     </div>
@@ -331,7 +472,7 @@ export function ObservadorMacroChat() {
                   disabled={isLoading}
                 />
                 <Button
-                  onClick={sendMessage}
+                  onClick={() => sendMessage(false)}
                   disabled={!input.trim() || isLoading}
                   className={cn(
                     "h-[44px] w-[44px] rounded-xl",
