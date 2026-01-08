@@ -20,14 +20,11 @@ interface AnalysisResult {
 
 export async function POST(request: NextRequest) {
   try {
-    // Verificar autenticación
+    // Autenticación opcional - permite uso público para Vista Wolcoff
+    // pero con rate limiting implícito de Vercel/Gemini
     const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json(
-        { error: 'No autorizado' },
-        { status: 401 }
-      );
-    }
+    // Si hay sesión, se usa el contexto del usuario
+    const userId = session?.user?.id || 'anonymous';
 
     const { text, context, nodeType } = await request.json();
 
