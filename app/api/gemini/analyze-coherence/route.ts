@@ -20,11 +20,21 @@ interface AnalysisResult {
 
 export async function POST(request: NextRequest) {
   try {
-    // Autenticación opcional - permite uso público para Vista Wolcoff
-    // pero con rate limiting implícito de Vercel/Gemini
+    // ⚠️ SEGURIDAD: Requiere autenticación para proteger recursos de Gemini API
     const session = await getServerSession(authOptions);
-    // Si hay sesión, se usa el contexto del usuario
-    const userId = session?.user?.id || 'anonymous';
+    
+    if (!session?.user) {
+      return NextResponse.json(
+        { 
+          error: 'Autenticación requerida',
+          message: 'Inicia sesión para usar el análisis con IA',
+          requiresAuth: true 
+        },
+        { status: 401 }
+      );
+    }
+    
+    const userId = session.user.id;
 
     const { text, context, nodeType } = await request.json();
 

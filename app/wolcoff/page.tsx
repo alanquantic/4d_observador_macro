@@ -10,7 +10,9 @@ import {
   Brain,
   Loader2,
   AlertCircle,
-  Info
+  Info,
+  LogIn,
+  Lock
 } from 'lucide-react';
 import Link from 'next/link';
 import WolcoffScene from '@/components/wolcoff/WolcoffScene';
@@ -24,6 +26,7 @@ export default function WolcoffPage() {
   const [loading, setLoading] = useState(false);
   const [inputText, setInputText] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [requiresAuth, setRequiresAuth] = useState(false);
 
   const handleAIAnalysis = useCallback(async () => {
     if (!inputText.trim() || inputText.length < 10) {
@@ -33,6 +36,7 @@ export default function WolcoffPage() {
 
     setLoading(true);
     setError(null);
+    setRequiresAuth(false);
 
     try {
       const res = await fetch('/api/gemini/analyze-coherence', {
@@ -44,17 +48,25 @@ export default function WolcoffPage() {
         })
       });
 
-      if (!res.ok) {
-        throw new Error('Error al analizar');
+      const data = await res.json();
+
+      // Manejar error de autenticación
+      if (res.status === 401 || data.requiresAuth) {
+        setRequiresAuth(true);
+        setError(null);
+        return;
       }
 
-      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Error al analizar');
+      }
       
       if (data.success && data.analysis) {
         setCoherence(data.analysis.coherence);
         setEnergy(data.analysis.energy);
         setDiagnosis(data.analysis.diagnosis);
         setRecommendation(data.analysis.recommendation);
+        setRequiresAuth(false);
       }
     } catch (err) {
       setError('Error al analizar. Intenta de nuevo.');
@@ -273,23 +285,57 @@ export default function WolcoffPage() {
                 </div>
               )}
 
-              <Button
-                onClick={handleAIAnalysis}
-                disabled={loading || inputText.length < 10}
-                className="w-full bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Analizando...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Analizar con IA
-                  </>
-                )}
-              </Button>
+              {/* Mensaje de autenticación requerida */}
+              {requiresAuth && (
+                <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-lg p-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center">
+                      <Lock className="w-5 h-5 text-purple-400" />
+                    </div>
+                    <div>
+                      <p className="text-white font-medium">Análisis IA Protegido</p>
+                      <p className="text-sm text-slate-400">Inicia sesión para usar esta función</p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-400 mb-4">
+                    El análisis con inteligencia artificial está disponible para usuarios registrados. 
+                    Crea una cuenta gratuita para desbloquear todas las funciones.
+                  </p>
+                  <div className="flex gap-2">
+                    <Link href="/auth/signin" className="flex-1">
+                      <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white">
+                        <LogIn className="w-4 h-4 mr-2" />
+                        Iniciar Sesión
+                      </Button>
+                    </Link>
+                    <Link href="/auth/register" className="flex-1">
+                      <Button variant="outline" className="w-full border-purple-500/50 text-purple-400 hover:bg-purple-500/10">
+                        Crear Cuenta
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              )}
+
+              {!requiresAuth && (
+                <Button
+                  onClick={handleAIAnalysis}
+                  disabled={loading || inputText.length < 10}
+                  className="w-full bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Analizando...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Analizar con IA
+                    </>
+                  )}
+                </Button>
+              )}
 
               {/* Info */}
               <div className="bg-slate-800/50 rounded-lg p-4 mt-4">
