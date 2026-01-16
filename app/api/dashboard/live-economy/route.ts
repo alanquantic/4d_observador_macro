@@ -95,7 +95,12 @@ export async function GET() {
     // Proyectos formateados para visualización (Sistema Solar)
     const formattedProjects = projects.map(p => {
       const revenue = p.totalRevenue || 0;
-      const transactions = p.transactionsPerHour || 0;
+      // Calcular transacciones por hora basado en decisiones recientes
+      const recentDecisions = p.decisions.filter(d => {
+        const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
+        return d.timestamp >= hourAgo;
+      });
+      const transactionsPerHour = recentDecisions.length;
       
       return {
         id: p.id,
@@ -108,23 +113,23 @@ export async function GET() {
         monthlyRevenue: p.monthlyRevenue || 0,
         
         // Agentes
-        activeAgents: p.activeAgents || 0,
+        activeAgents: p.decisions.length > 0 ? 1 : 0, // Estimado basado en actividad
         agentMode: p.agentMode || 'auto',
         
         // Actividad
-        transactionsPerHour: transactions,
+        transactionsPerHour,
         lastTransaction: p.lastTransactionAt?.toISOString() || null,
         recentDecisionsCount: p.decisions.length,
         
-        // Métricas externas
-        marketSentiment: p.marketSentiment || 0.5,
-        userActivityLevel: p.userActivityLevel || 0.5,
+        // Métricas calculadas
+        marketSentiment: 0.5, // Default
+        userActivityLevel: Math.min(1, p.decisions.length / 50), // Basado en actividad
         
         // Para visualización Sistema Solar
         orbitRadius: 20 + Math.min(30, revenue / 500), // 20-50 unidades
-        orbitSpeed: Math.min(2, 0.2 + transactions / 10), // 0.2-2 velocidad
+        orbitSpeed: Math.min(2, 0.2 + transactionsPerHour / 10), // 0.2-2 velocidad
         planetSize: 1.5 + Math.log10(revenue + 1) * 0.8, // Tamaño logarítmico
-        glowIntensity: Math.min(1, transactions / 20), // Brillo por actividad
+        glowIntensity: Math.min(1, transactionsPerHour / 20), // Brillo por actividad
       };
     });
     
