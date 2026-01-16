@@ -20,7 +20,10 @@ import {
   Box,
   Maximize2,
   Crosshair,
-  Globe
+  Globe,
+  Orbit,
+  DollarSign,
+  ExternalLink
 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import { CoherenceMeters } from './coherence-meters';
@@ -157,6 +160,7 @@ export function DashboardContent() {
   const navigationItems = [
     { name: 'Vista General', icon: Home, action: () => window.scrollTo({ top: 0, behavior: 'smooth' }), current: true },
     { name: 'Modo Decisión', icon: Crosshair, action: () => setShowDecisionMode(true), current: false, highlight: true, badge: 'CEO' },
+    { name: 'Economy View', icon: Orbit, action: () => router.push('/economy-view'), current: false, highlight: true, badge: '💰' },
     { name: 'Projects Hub', icon: Globe, action: () => router.push('/projects-hub'), current: false, highlight: true, badge: 'API' },
     { name: 'Tablero 3D', icon: Box, action: () => router.push('/tablero-3d'), current: false, highlight: true, badge: '3D' },
     { name: 'Geometría Wolcoff', icon: Sparkles, action: () => router.push('/wolcoff'), current: false, highlight: true, badge: 'NEW' },

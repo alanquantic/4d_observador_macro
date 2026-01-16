@@ -8,8 +8,11 @@ import { Link3D } from './Link3D';
 import { Grid3D } from './Grid3D';
 import { Particles3D } from './Particles3D';
 import { Card } from '@/components/ui/card';
-import { X, Filter, Eye, Layers, Target, Sparkles, Users, Briefcase, Lightbulb, Loader2, RefreshCw, AlertCircle, TrendingUp, TrendingDown, Zap, ArrowRight, Brain } from 'lucide-react';
+import { X, Filter, Eye, Layers, Target, Sparkles, Users, Briefcase, Lightbulb, Loader2, RefreshCw, AlertCircle, TrendingUp, TrendingDown, Zap, ArrowRight, Brain, DollarSign, Orbit, Activity } from 'lucide-react';
 import { interpretNode, NodeInterpretation } from '@/lib/nodeInterpreter';
+
+// Modos de visualización
+type ViewMode = 'coherence' | 'economy';
 
 interface NodeData {
   id: string;
@@ -113,6 +116,23 @@ function Scene3D() {
   const [error, setError] = useState<string | null>(null);
   const [usingRealData, setUsingRealData] = useState(false);
   const [breakdown, setBreakdown] = useState<Record<string, number>>({});
+  
+  // Modo de visualización: coherencia (nodos normales) o economía (sistema solar)
+  const [viewMode, setViewMode] = useState<ViewMode>('coherence');
+  const [economyData, setEconomyData] = useState<{
+    projects: Array<{
+      id: string;
+      name: string;
+      totalRevenue: number;
+      transactionsPerHour: number;
+      agentMode: string;
+    }>;
+    globalMetrics: {
+      totalBalance: number;
+      monthlyRevenue: number;
+      decisionsToday: number;
+    };
+  } | null>(null);
   
   // Estado para análisis IA
   const [aiAnalysis, setAiAnalysis] = useState<{
@@ -244,6 +264,33 @@ function Scene3D() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Cargar datos de economía cuando se cambia al modo economía
+  const loadEconomyData = useCallback(async () => {
+    try {
+      const response = await fetch('/api/dashboard/live-economy');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setEconomyData({
+            projects: data.projects || [],
+            globalMetrics: data.global || { totalBalance: 0, monthlyRevenue: 0, decisionsToday: 0 }
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error cargando datos de economía:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (viewMode === 'economy') {
+      loadEconomyData();
+      // Polling cada 10 segundos en modo economía
+      const interval = setInterval(loadEconomyData, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [viewMode, loadEconomyData]);
 
   // Listen for zoom events from parent
   useEffect(() => {
@@ -437,8 +484,109 @@ function Scene3D() {
         style={{ touchAction: 'none' }}
       />
 
+      {/* Toggle de Modo de Vista - Superior Central */}
+      <div className="absolute top-24 left-1/2 transform -translate-x-1/2 z-50">
+        <div className="bg-black/80 backdrop-blur-md border border-slate-600/50 rounded-full p-1 flex items-center gap-1">
+          <button
+            onClick={() => setViewMode('coherence')}
+            className={`px-4 py-2 rounded-full flex items-center gap-2 transition-all text-sm font-medium ${
+              viewMode === 'coherence'
+                ? 'bg-gradient-to-r from-cyan-500 to-purple-600 text-white shadow-lg'
+                : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+            }`}
+          >
+            <Target className="h-4 w-4" />
+            Coherencia
+          </button>
+          <button
+            onClick={() => setViewMode('economy')}
+            className={`px-4 py-2 rounded-full flex items-center gap-2 transition-all text-sm font-medium ${
+              viewMode === 'economy'
+                ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white shadow-lg'
+                : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+            }`}
+          >
+            <DollarSign className="h-4 w-4" />
+            Economía
+          </button>
+        </div>
+      </div>
+
+      {/* Overlay de Economía cuando está en modo economy */}
+      {viewMode === 'economy' && economyData && (
+        <div className="absolute inset-0 pointer-events-none z-20">
+          {/* Métricas flotantes arriba a la derecha */}
+          <div className="absolute top-40 right-6 space-y-3 pointer-events-auto">
+            <div className="bg-black/80 backdrop-blur-md border border-yellow-500/30 rounded-lg p-4 w-48">
+              <div className="flex items-center gap-2 mb-2">
+                <DollarSign className="h-4 w-4 text-green-400" />
+                <span className="text-xs text-slate-400">Balance Total</span>
+              </div>
+              <p className="text-2xl font-bold text-green-400">
+                ${economyData.globalMetrics.totalBalance.toLocaleString()}
+              </p>
+            </div>
+            <div className="bg-black/80 backdrop-blur-md border border-yellow-500/30 rounded-lg p-4 w-48">
+              <div className="flex items-center gap-2 mb-2">
+                <TrendingUp className="h-4 w-4 text-yellow-400" />
+                <span className="text-xs text-slate-400">Este Mes</span>
+              </div>
+              <p className="text-2xl font-bold text-yellow-400">
+                ${economyData.globalMetrics.monthlyRevenue.toLocaleString()}
+              </p>
+            </div>
+            <div className="bg-black/80 backdrop-blur-md border border-yellow-500/30 rounded-lg p-4 w-48">
+              <div className="flex items-center gap-2 mb-2">
+                <Activity className="h-4 w-4 text-cyan-400" />
+                <span className="text-xs text-slate-400">Decisiones Hoy</span>
+              </div>
+              <p className="text-2xl font-bold text-cyan-400">
+                {economyData.globalMetrics.decisionsToday}
+              </p>
+            </div>
+          </div>
+
+          {/* Lista de proyectos orbitando */}
+          <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 pointer-events-auto">
+            <div className="bg-black/80 backdrop-blur-md border border-slate-600/50 rounded-lg p-3 flex items-center gap-4">
+              <Orbit className="h-5 w-5 text-yellow-400" />
+              <span className="text-sm text-slate-400">Proyectos Orbitando:</span>
+              {economyData.projects.length === 0 ? (
+                <span className="text-xs text-slate-500">Ningún proyecto registrado</span>
+              ) : (
+                economyData.projects.map((project) => (
+                  <div 
+                    key={project.id}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2 ${
+                      project.agentMode === 'paused' 
+                        ? 'bg-red-500/20 text-red-300 border border-red-500/30'
+                        : 'bg-green-500/20 text-green-300 border border-green-500/30'
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-current" />
+                    {project.name}
+                    <span className="text-yellow-400">${project.totalRevenue}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Link a Economy View completa */}
+          <div className="absolute top-40 left-6 pointer-events-auto">
+            <a
+              href="/economy-view"
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 hover:from-yellow-500/30 hover:to-orange-500/30 border border-yellow-500/30 rounded-lg text-yellow-300 text-sm font-medium transition-all"
+            >
+              <Orbit className="h-4 w-4" />
+              Ver Sistema Solar Completo
+            </a>
+          </div>
+        </div>
+      )}
+
       {/* Panel de Controles Superior Izquierdo */}
-      <div className="absolute top-24 left-6 z-50 space-y-3">
+      <div className="absolute top-24 left-6 z-50 space-y-3" style={{ marginTop: viewMode === 'economy' ? '60px' : '0' }}>
         {/* Indicador de tipo de datos */}
         <div className={`px-4 py-2 rounded-lg text-xs font-medium flex items-center gap-2 ${
           usingRealData 
