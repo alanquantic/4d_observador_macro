@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { SolarSystem3D } from '@/components/economy/SolarSystem3D';
+import { RevenueChart } from '@/components/economy/RevenueChart';
+import { PredictionsPanel } from '@/components/economy/PredictionsPanel';
 import { Button } from '@/components/ui/button';
 import { 
   ArrowLeft, 
@@ -18,7 +20,11 @@ import {
   TrendingDown,
   Minus,
   Settings,
-  ExternalLink
+  ExternalLink,
+  BarChart2,
+  Brain,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -64,6 +70,7 @@ export default function EconomyViewPage() {
   const [loading, setLoading] = useState(true);
   const [isPolling, setIsPolling] = useState(true);
   const [showDecisionStream, setShowDecisionStream] = useState(true);
+  const [showAnalytics, setShowAnalytics] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -391,9 +398,55 @@ export default function EconomyViewPage() {
         </button>
       )}
 
+      {/* Panel lateral de Analytics */}
+      <div className={`fixed top-0 right-0 h-full w-[500px] bg-slate-950/95 backdrop-blur-md border-l border-purple-500/30 z-40 transform transition-transform duration-300 ${showAnalytics ? 'translate-x-0' : 'translate-x-full'}`}>
+        <div className="h-full overflow-y-auto p-6 space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <BarChart2 className="h-5 w-5 text-purple-400" />
+              Analytics & Predicciones
+            </h2>
+            <button 
+              onClick={() => setShowAnalytics(false)}
+              className="text-slate-400 hover:text-white p-1"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          </div>
+          
+          {/* Gráfica de Ingresos */}
+          <RevenueChart />
+          
+          {/* Panel de Predicciones IA */}
+          <PredictionsPanel />
+        </div>
+      </div>
+
+      {/* Botón flotante para abrir Analytics */}
+      {!showAnalytics && (
+        <button
+          onClick={() => setShowAnalytics(true)}
+          className="fixed right-0 top-1/2 transform -translate-y-1/2 z-30 bg-purple-600 hover:bg-purple-700 text-white p-3 rounded-l-lg shadow-lg flex items-center gap-2 transition-all"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          <BarChart2 className="h-5 w-5" />
+          <Brain className="h-5 w-5" />
+        </button>
+      )}
+
       {/* Footer con acciones rápidas */}
       <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10">
         <div className="bg-black/70 backdrop-blur-sm border border-slate-700/50 rounded-full px-6 py-2 flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowAnalytics(true)}
+            className={`${showAnalytics ? 'text-purple-400' : 'text-slate-400'} hover:text-white`}
+          >
+            <BarChart2 className="h-4 w-4 mr-1" />
+            Analytics
+          </Button>
+          <div className="w-px h-6 bg-slate-700" />
           <Button
             variant="ghost"
             size="sm"
