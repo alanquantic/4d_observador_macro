@@ -5,7 +5,7 @@ import { prisma } from '@/lib/db';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // GET /api/dashboard/live-economy
-// Devuelve estado financiero consolidado de todos los proyectos
+// Devuelve estado financiero consolidado de todos los proyectos EXTERNOS
 // Para el Agent Command Center y visualización Sistema Solar
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -19,11 +19,11 @@ export async function GET() {
     
     const userId = session.user.id;
     
-    // Obtener proyectos con sus decisiones recientes
-    const projects = await prisma.project.findMany({
+    // Obtener proyectos EXTERNOS con sus decisiones recientes
+    const projects = await prisma.externalProject.findMany({
       where: { userId, status: { in: ['active', 'paused'] } },
       include: {
-        agentDecisions: {
+        decisions: {
           orderBy: { timestamp: 'desc' },
           take: 20, // Últimas 20 decisiones por proyecto
         }
@@ -35,10 +35,10 @@ export async function GET() {
     const totalBalance = projects.reduce((sum, p) => sum + (p.currentBalance || 0), 0);
     const totalRevenue = projects.reduce((sum, p) => sum + (p.totalRevenue || 0), 0);
     const monthlyRevenue = projects.reduce((sum, p) => sum + (p.monthlyRevenue || 0), 0);
-    const totalActiveAgents = projects.reduce((sum, p) => sum + (p.activeAgents || 0), 0);
+    const totalActiveAgents = projects.length; // Cada proyecto externo es un "agente"
     
     // Obtener últimas 100 decisiones globales (para el feed)
-    const recentDecisions = await prisma.agentDecision.findMany({
+    const recentDecisions = await prisma.externalDecision.findMany({
       where: {
         project: { userId }
       },
@@ -114,7 +114,7 @@ export async function GET() {
         // Actividad
         transactionsPerHour: transactions,
         lastTransaction: p.lastTransactionAt?.toISOString() || null,
-        recentDecisionsCount: p.agentDecisions.length,
+        recentDecisionsCount: p.decisions.length,
         
         // Métricas externas
         marketSentiment: p.marketSentiment || 0.5,
@@ -143,7 +143,7 @@ export async function GET() {
       }
       
       // Detectar decisiones de alto riesgo recientes
-      const highRiskDecisions = p.agentDecisions.filter(d => d.riskLevel && d.riskLevel > 0.8);
+      const highRiskDecisions = p.decisions.filter(d => d.riskLevel && d.riskLevel > 0.8);
       if (highRiskDecisions.length > 3) {
         alerts.push({
           type: 'high_risk',
