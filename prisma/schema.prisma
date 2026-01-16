@@ -250,7 +250,28 @@ model Project {
   impactLevel   Float?   // Expected impact 1-10
   satisfactionLevel Float? // Personal satisfaction 1-10
   
+  // ═══════════════════════════════════════════════════════════════
+  // ECONOMÍA AGÉNTICA - Campos financieros y de agentes
+  // ═══════════════════════════════════════════════════════════════
+  
+  // Estado financiero en vivo
+  currentBalance    Float   @default(0.0)  // Dinero en caja hoy
+  totalRevenue      Float   @default(0.0)  // Ingresos totales acumulados
+  monthlyRevenue    Float   @default(0.0)  // Ingresos este mes
+  lastTransactionAt DateTime?              // Última transacción
+  
+  // Estado de agentes de IA
+  activeAgents      Int     @default(0)    // Agentes de IA activos
+  agentMode         String  @default("auto") // "auto", "manual", "paused"
+  
+  // Métricas externas del mercado
+  marketSentiment   Float   @default(0.5)  // 0-1 (Miedo vs Codicia)
+  userActivityLevel Float   @default(0.5)  // 0-1 actividad de usuarios
+  transactionsPerHour Float @default(0.0)  // Velocidad de transacciones
+  
+  // Relaciones
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agentDecisions AgentDecision[]  // Decisiones de agentes
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -398,4 +419,43 @@ model NodeSnapshot {
   @@index([userId, nodeId])
   @@index([userId, nodeType])
   @@index([userId, createdAt])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ECONOMÍA AGÉNTICA - Registro de decisiones de agentes de IA externos
+// ═══════════════════════════════════════════════════════════════════════════
+
+model AgentDecision {
+  id            String   @id @default(cuid())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  timestamp     DateTime @default(now())
+  
+  // Contexto del momento
+  contextType   String   // "pricing_request", "risk_assessment", "churn_prediction", "payment_processed"
+  inputSummary  String?  // Resumen legible del input (ej: "Contrato #882 - 15 páginas")
+  inputValue    Json?    // Datos raw de entrada
+  
+  // La decisión tomada
+  actionTaken   String   // "increase_price", "block_user", "offer_discount", "approve_payment"
+  actionLabel   String?  // Etiqueta legible (ej: "Precio ajustado +40%")
+  outputValue   Json?    // Detalles de salida { price: 50.00, currency: "USD" }
+  
+  // Resultado y feedback
+  outcome       String?  // "accepted", "rejected", "ignored", "pending"
+  revenueGenerated Float @default(0.0) // Dinero generado por esta decisión
+  
+  // Impacto en la geometría (para Wolcoff)
+  coherenceImpact Float? // -1 a 1 (negativo = baja coherencia, positivo = mejora)
+  riskLevel       Float? // 0-1 nivel de riesgo de esta decisión
+  
+  // Metadata del agente
+  agentName     String?  // Nombre del agente que tomó la decisión
+  agentVersion  String?  // Versión del modelo de IA
+  
+  createdAt     DateTime @default(now())
+  
+  @@index([projectId, timestamp])
+  @@index([projectId, actionTaken])
+  @@index([timestamp])
 }

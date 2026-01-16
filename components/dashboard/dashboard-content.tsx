@@ -33,6 +33,7 @@ import GameBoard from './game-board';
 import { DecisionMode } from './DecisionMode';
 import { NodeEvolution } from './NodeEvolution';
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard';
+import { AgentCommandCenter } from './AgentCommandCenter';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -400,6 +401,11 @@ export function DashboardContent() {
               </div>
               
               <GameBoard recentData={gameBoardData} />
+            </div>
+
+            {/* Agent Command Center - Economía Agéntica */}
+            <div className="mb-6" data-testid="agent-command-center">
+              <AgentCommandCenter />
             </div>
 
             {/* Métricas de Coherencia - Estado Actual */}
