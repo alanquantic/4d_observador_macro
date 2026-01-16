@@ -2,14 +2,12 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // GET /api/dashboard/predictions
 // Usa Gemini para predecir tendencias de ingresos basado en historial
 // ═══════════════════════════════════════════════════════════════════════════
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || '');
 
 export async function GET() {
   try {
@@ -105,7 +103,12 @@ export async function GET() {
     // Llamar a Gemini para análisis
     let aiInsights: any = null;
     try {
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+      const apiKey = process.env.GOOGLE_AI_API_KEY;
+      if (!apiKey) {
+        throw new Error('API Key de Gemini no configurada');
+      }
+      
+      const genAI = new GoogleGenAI({ apiKey });
       
       const prompt = `Eres un analista financiero de IA. Analiza estos datos de un sistema de agentes que generan ingresos automáticamente.
 
@@ -129,8 +132,11 @@ Responde SOLO en JSON válido con esta estructura:
   "risks": [array de 1-2 strings con riesgos potenciales]
 }`;
 
-      const result = await model.generateContent(prompt);
-      const responseText = result.response.text();
+      const result = await genAI.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents: prompt
+      });
+      const responseText = result.text || '';
       
       // Extraer JSON de la respuesta
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
