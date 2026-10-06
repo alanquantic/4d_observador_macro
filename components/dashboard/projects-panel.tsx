@@ -159,6 +159,40 @@ export function ProjectsPanel() {
     }
   };
 
+  const getStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      all: 'Todos',
+      active: 'Activo',
+      paused: 'Pausado',
+      completed: 'Completado',
+      cancelled: 'Cancelado',
+    };
+    return labels[status] || status.replace(/_/g, ' ');
+  };
+
+  const getStatusPluralLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      all: 'Todos',
+      active: 'Activos',
+      paused: 'Pausados',
+      completed: 'Completados',
+      cancelled: 'Cancelados',
+    };
+    return labels[status] || getStatusLabel(status);
+  };
+
+  const getCategoryLabel = (category?: string) => {
+    const labels: Record<string, string> = {
+      personal: 'Personal',
+      professional: 'Profesional',
+      spiritual: 'Espiritual',
+      health: 'Salud',
+      relationships: 'Relaciones',
+      financial: 'Financiero',
+    };
+    return category ? (labels[category] || category.replace(/_/g, ' ')) : '';
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active':
@@ -237,6 +271,7 @@ export function ProjectsPanel() {
         {/* Botón Crear Proyecto Destacado */}
         <Button 
           onClick={() => setShowDialog(true)}
+          aria-label="Agregar proyecto"
           className="w-full mb-4 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/20"
           size="lg"
         >
@@ -256,7 +291,7 @@ export function ProjectsPanel() {
           </div>
           <div>
             <div className="text-2xl font-bold text-purple-400">{projectStats.avgProgress}%</div>
-            <div className="text-xs text-slate-400">Progreso Avg</div>
+            <div className="text-xs text-slate-400">Progreso promedio</div>
           </div>
         </div>
 
@@ -273,7 +308,7 @@ export function ProjectsPanel() {
                 : 'text-slate-400 hover:text-slate-200'
               }
             >
-              {status === 'all' ? 'Todos' : status.charAt(0).toUpperCase() + status.slice(1)}
+              {getStatusPluralLabel(status)}
             </Button>
           ))}
         </div>
@@ -301,7 +336,7 @@ export function ProjectsPanel() {
                         >
                           <span className="flex items-center gap-1">
                             {getStatusIcon(project.status)}
-                            {project.status}
+                            {getStatusLabel(project.status)}
                           </span>
                         </Badge>
                       </div>
@@ -329,19 +364,20 @@ export function ProjectsPanel() {
                   </div>
 
                   {/* Métricas */}
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-4">
+                  <div className="flex items-start justify-between gap-3 text-sm">
+                    <div className="flex flex-col gap-2">
                       {project.category && (
                         <Badge 
                           variant="outline" 
-                          className={`text-xs ${getCategoryColor(project.category)}`}
+                          className={`w-fit text-xs ${getCategoryColor(project.category)}`}
                         >
-                          {project.category}
+                          {getCategoryLabel(project.category)}
                         </Badge>
                       )}
                       
                       <div className="flex items-center gap-1">
                         <Zap className="h-3 w-3 text-yellow-400" />
+                        <span className="text-slate-400">Energía dedicada:</span>
                         <span className={`${getEnergyColor(project.energyInvested)} font-medium`}>
                           {project.energyInvested}/10
                         </span>
@@ -350,6 +386,7 @@ export function ProjectsPanel() {
                       {project.impactLevel && (
                         <div className="flex items-center gap-1">
                           <TrendingUp className="h-3 w-3 text-purple-400" />
+                          <span className="text-slate-400">Impacto esperado:</span>
                           <span className="text-purple-400 font-medium">
                             {project.impactLevel}/10
                           </span>
@@ -408,12 +445,30 @@ export function ProjectsPanel() {
               ))}
             </div>
           ) : (
-            <div className="text-center py-8 text-slate-400">
-              <Target className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <p>No hay proyectos {filter !== 'all' ? `en estado ${filter}` : ''}</p>
-              <p className="text-sm mt-1">
-                Los proyectos representan tus objetivos manifestándose en 4D
+            <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-6 text-center text-slate-300">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-500/15 text-cyan-300">
+                <Target className="h-7 w-7" />
+              </div>
+              <h3 className="text-lg font-semibold text-white">
+                {projects.length === 0 ? 'Crea tu primer proyecto' : `No hay proyectos en estado ${getStatusLabel(filter).toLowerCase()}`}
+              </h3>
+              <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-slate-400">
+                Un proyecto es el primer nodo de tu mapa 4D. Puede ser un negocio, una relación, un hábito, una inversión o una meta personal que quieras observar con claridad.
               </p>
+              <div className="mt-4 flex flex-wrap justify-center gap-2 text-xs text-cyan-200">
+                {['Negocio', 'Salud', 'Relación', 'Creatividad'].map(example => (
+                  <span key={example} className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1">
+                    {example}
+                  </span>
+                ))}
+              </div>
+              <Button
+                onClick={() => setShowDialog(true)}
+                className="mt-5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Crear primer proyecto
+              </Button>
             </div>
           )}
         </div>

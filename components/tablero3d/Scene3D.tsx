@@ -8,11 +8,12 @@ import { Link3D } from './Link3D';
 import { Grid3D } from './Grid3D';
 import { Particles3D } from './Particles3D';
 import { Card } from '@/components/ui/card';
-import { X, Filter, Eye, Layers, Target, Sparkles, Users, Briefcase, Lightbulb, Loader2, RefreshCw, AlertCircle, TrendingUp, TrendingDown, Zap, ArrowRight, Brain, DollarSign, Orbit, Activity } from 'lucide-react';
+import { X, Filter, Layers, Target, Sparkles, Users, Briefcase, Lightbulb, Loader2, AlertCircle, TrendingUp, TrendingDown, Zap, ArrowRight, Brain, DollarSign, Orbit, Activity, Search, Maximize2, Network, Play, BarChart3 } from 'lucide-react';
 import { interpretNode, NodeInterpretation } from '@/lib/nodeInterpreter';
 
 // Modos de visualización
 type ViewMode = 'coherence' | 'economy';
+type ProjectionMode = '3d' | '2d';
 
 interface NodeData {
   id: string;
@@ -21,6 +22,7 @@ interface NodeData {
   z: number;
   size: number;
   energy: number;
+  coherence?: number;
   label: string;
   color: string;
   type: string;
@@ -53,14 +55,20 @@ interface APIResponse {
       logical: number;
       energetic: number;
     };
+    signals?: {
+      projects: number;
+      relationships: number;
+      dailyEntries: number;
+      sufficient: boolean;
+    };
   };
 }
 
 const NODE_TYPES = [
   { id: 'all', label: 'Todos', icon: Layers, color: '#ffffff' },
-  { id: 'self', label: 'Observador', icon: Target, color: '#00ffff' },
-  { id: 'project', label: 'Proyectos', icon: Briefcase, color: '#ff00ff' },
-  { id: 'relationship', label: 'Relaciones', icon: Users, color: '#ffaa00' },
+  { id: 'self', label: 'Observador', icon: Target, color: '#67e8f9' },
+  { id: 'project', label: 'Proyectos', icon: Briefcase, color: '#8b5cf6' },
+  { id: 'relationship', label: 'Relaciones', icon: Users, color: '#6ee7b7' },
   { id: 'intention', label: 'Intenciones', icon: Lightbulb, color: '#00ff88' },
   { id: 'manifestation', label: 'Manifestaciones', icon: Sparkles, color: '#ff0088' },
 ];
@@ -80,6 +88,33 @@ const EXAMPLE_NODES: NodeData[] = [
   { id: 'abundance', x: 35, y: 5, z: 21, size: 2.1, energy: 0.68, label: 'Abundancia', color: '#ff0088', type: 'manifestation' },
   { id: 'purpose', x: -5, y: -35, z: 39, size: 2.3, energy: 0.88, label: 'Propósito de Vida', color: '#ff44cc', type: 'manifestation' },
 ];
+
+
+const EMPTY_NODES: NodeData[] = [
+  { id: 'observer', x: 0, y: 0, z: 45, size: 3.5, energy: 0, label: 'Observador 4D', color: '#00ffff', type: 'self', metadata: { empty: true, coherence: 0 } },
+];
+
+const EMPTY_BREAKDOWN: NonNullable<APIResponse['stats']['breakdown']> = { projects: 0, relationships: 0, intentions: 0, manifestations: 0 };
+const EMPTY_STATS: APIResponse['stats'] = { total: 1, avgEnergy: 0, connections: 0, breakdown: EMPTY_BREAKDOWN, signals: { projects: 0, relationships: 0, dailyEntries: 0, sufficient: false } };
+
+const VISUAL_REFERENCE_NODES: NodeData[] = [
+  { id: 'observer', x: 12, y: -1, z: 22, size: 5.3, energy: 0.9, coherence: 0.9, label: 'Tú / Observador', color: '#67e8f9', type: 'self', metadata: { source: 'Escenario visual de prueba', empty: true } },
+  { id: 'project_levi', x: -14, y: -8, z: 29, size: 4.2, energy: 0.5, coherence: 0.7, label: 'levi / Proyecto', color: '#8b5cf6', type: 'project', metadata: { description: 'chasis', progress: 0, energyInvested: 5, impactLevel: 7, source: 'Escenario visual de prueba' } },
+  { id: 'relationship_diego', x: -7, y: 15, z: 17, size: 3.35, energy: 0.65, coherence: 0.65, label: 'diego / Relación', color: '#6ee7b7', type: 'relationship', metadata: { source: 'Escenario visual de prueba' } },
+];
+
+const VISUAL_REFERENCE_LINKS: LinkData[] = [
+  { source: 'observer', target: 'project_levi', strength: 0.72 },
+  { source: 'observer', target: 'relationship_diego', strength: 0.62 },
+];
+
+const VISUAL_REFERENCE_STATS: APIResponse['stats'] = {
+  total: 3,
+  avgEnergy: 0.68,
+  connections: 2,
+  breakdown: { projects: 1, relationships: 1, intentions: 0, manifestations: 0 },
+  signals: { projects: 1, relationships: 1, dailyEntries: 1, sufficient: true },
+};
 
 const EXAMPLE_LINKS: LinkData[] = [
   { source: 'observer', target: 'work', strength: 0.9 },
@@ -105,17 +140,23 @@ function Scene3D() {
   const sceneRef = useRef<BABYLON.Scene | null>(null);
   const cameraRef = useRef<BABYLON.ArcRotateCamera | null>(null);
   const nodeMeshesRef = useRef<Map<string, BABYLON.Mesh>>(new Map());
+  const linkMeshesRef = useRef<Array<{ mesh: BABYLON.Mesh; source: string; target: string }>>([]);
   const [selectedNode, setSelectedNode] = useState<NodeData | null>(null);
   const [debugMode, setDebugMode] = useState(false);
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [projectionMode, setProjectionMode] = useState<ProjectionMode>('3d');
   const [nodesData, setNodesData] = useState<NodeData[]>([]);
   const [linksData, setLinksData] = useState<LinkData[]>([]);
-  const [stats, setStats] = useState({ total: 0, avgEnergy: 0, connections: 0 });
+  const [stats, setStats] = useState<APIResponse['stats']>({ total: 0, avgEnergy: 0, connections: 0, signals: { projects: 0, relationships: 0, dailyEntries: 0, sufficient: false } });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [usingRealData, setUsingRealData] = useState(false);
   const [breakdown, setBreakdown] = useState<Record<string, number>>({});
+  const [timelineSnapshots, setTimelineSnapshots] = useState<Array<{ id: string; nodeLabel: string; createdAt: string }>>([]);
+  const [selectedSnapshotIds, setSelectedSnapshotIds] = useState<string[]>([]);
+  const visualReferenceMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('visual') === 'reference';
   
   // Modo de visualización: coherencia (nodos normales) o economía (sistema solar)
   const [viewMode, setViewMode] = useState<ViewMode>('coherence');
@@ -179,20 +220,139 @@ function Scene3D() {
   const nodeInterpretation = useMemo<NodeInterpretation | null>(() => {
     if (!selectedNode || nodesData.length === 0) return null;
     return interpretNode(
-      { ...selectedNode, coherence: selectedNode.metadata?.coherence },
+      { ...selectedNode, coherence: selectedNode.coherence ?? selectedNode.metadata?.coherence },
       linksData,
       systemCoherence
     );
   }, [selectedNode, linksData, nodesData, systemCoherence]);
 
+
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+
+  const visibleNodes = useMemo(() => {
+    return nodesData.filter((node) => {
+      const matchesFilter = activeFilter === 'all' || node.type === activeFilter;
+      const matchesSearch = !normalizedSearch || node.label.toLowerCase().includes(normalizedSearch);
+      return matchesFilter && matchesSearch;
+    });
+  }, [nodesData, activeFilter, normalizedSearch]);
+
+  const visibleNodeIds = useMemo(() => new Set(visibleNodes.map((node) => node.id)), [visibleNodes]);
+
+  const searchResults = useMemo(() => {
+    if (!normalizedSearch) return [];
+    return nodesData
+      .filter((node) => node.label.toLowerCase().includes(normalizedSearch))
+      .slice(0, 6);
+  }, [nodesData, normalizedSearch]);
+
+  const selectedConnections = useMemo(() => {
+    if (!selectedNode) return [];
+    return linksData
+      .filter((link) => link.source === selectedNode.id || link.target === selectedNode.id)
+      .map((link) => {
+        const otherId = link.source === selectedNode.id ? link.target : link.source;
+        return {
+          ...link,
+          otherNode: nodesData.find((node) => node.id === otherId),
+        };
+      })
+      .filter((link) => Boolean(link.otherNode));
+  }, [selectedNode, linksData, nodesData]);
+
+  const selectedLastChange = useMemo(() => {
+    const metadata = selectedNode?.metadata;
+    if (!metadata) return null;
+    const rawDate = metadata.updatedAt || metadata.lastUpdated || metadata.createdAt || metadata.date;
+    if (!rawDate || typeof rawDate !== 'string') return null;
+    const date = new Date(rawDate);
+    if (Number.isNaN(date.getTime())) return null;
+    return `${date.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })} · ${date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`;
+  }, [selectedNode]);
+
+
+  const hasSufficientEvidence = Boolean(stats.signals?.sufficient);
+  const missingEvidence = useMemo(() => {
+    const missing: string[] = [];
+    if (!stats.signals?.projects) missing.push('proyecto');
+    if (!stats.signals?.relationships) missing.push('relación');
+    if (!stats.signals?.dailyEntries) missing.push('registro diario');
+    return missing;
+  }, [stats.signals]);
+
+  const formatSnapshotDate = useCallback((value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Sin fecha';
+    return `${date.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })} · ${date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`;
+  }, [visualReferenceMode]);
+
+
+  const toggleSnapshotSelection = useCallback((snapshotId: string) => {
+    setSelectedSnapshotIds((current) => {
+      if (current.includes(snapshotId)) {
+        return current.filter((id) => id !== snapshotId);
+      }
+      return [...current.slice(-1), snapshotId];
+    });
+  }, []);
+
+  const canCompareSnapshots = selectedSnapshotIds.length === 2;
+  const timelineHelpText = timelineSnapshots.length < 2
+    ? 'Necesitas al menos dos capturas reales para comparar.'
+    : canCompareSnapshots
+      ? 'Listo para comparar las dos capturas seleccionadas.'
+      : 'Selecciona dos capturas en la línea temporal.';
+
+  const selectedSourceEnergy = selectedNode ? Math.round((selectedNode.energy || 0) * 100) : 0;
+  const selectedSourceCoherence = useMemo(() => {
+    if (!selectedNode) return 0;
+    const raw = selectedNode.coherence ?? selectedNode.metadata?.coherence ?? 0;
+    const numeric = typeof raw === 'number' ? raw : Number(raw);
+    if (Number.isNaN(numeric)) return 0;
+    return Math.round(numeric <= 1 ? numeric * 100 : numeric);
+  }, [selectedNode]);
+
   // Calcular centro de los nodos para centrar la cámara
   const calculateCenter = useCallback((nodes: NodeData[]) => {
-    if (nodes.length === 0) return new BABYLON.Vector3(0, 20, 0);
+    if (nodes.length === 0) return new BABYLON.Vector3(0, 18, 0);
     const sumX = nodes.reduce((acc, n) => acc + n.x, 0) / nodes.length;
     const sumY = nodes.reduce((acc, n) => acc + n.y, 0) / nodes.length;
     const sumZ = nodes.reduce((acc, n) => acc + n.z, 0) / nodes.length;
-    return new BABYLON.Vector3(sumX, sumZ / 2, sumY);
-  }, []);
+    return new BABYLON.Vector3(sumX, projectionMode === '2d' ? 0 : sumZ - 5, sumY);
+  }, [projectionMode]);
+
+
+  const calculateRadius = useCallback((nodes: NodeData[]) => {
+    if (nodes.length <= 1) return projectionMode === '2d' ? 58 : 68;
+    const center = calculateCenter(nodes);
+    const farthest = nodes.reduce((maxDistance, node) => {
+      const position = new BABYLON.Vector3(node.x, projectionMode === '2d' ? 0 : node.z, node.y);
+      return Math.max(maxDistance, BABYLON.Vector3.Distance(center, position));
+    }, 0);
+    return Math.max(projectionMode === '2d' ? 82 : 106, Math.min(190, farthest * 2.35 + 60));
+  }, [calculateCenter, projectionMode]);
+
+  const frameNodes = useCallback((nodes: NodeData[] = visibleNodes.length > 0 ? visibleNodes : nodesData) => {
+    const camera = cameraRef.current;
+    if (!camera || nodes.length === 0) return;
+
+    camera.alpha = Math.PI / 4;
+    camera.beta = projectionMode === '2d' ? 0.28 : Math.PI / 3.05;
+    camera.radius = calculateRadius(nodes);
+    camera.target = calculateCenter(nodes);
+  }, [calculateCenter, calculateRadius, nodesData, projectionMode, visibleNodes]);
+
+  const focusNode = useCallback((node: NodeData) => {
+    setSelectedNode(node);
+    const camera = cameraRef.current;
+    if (!camera) return;
+
+    const yPosition = projectionMode === '2d' ? 0 : node.z;
+    camera.alpha = Math.PI / 4;
+    camera.beta = projectionMode === '2d' ? 0.28 : Math.PI / 3.05;
+    camera.radius = Math.max(projectionMode === '2d' ? 64 : 58, Math.min(100, 54 + nodesData.length * 4));
+    camera.target = new BABYLON.Vector3(node.x, yPosition, node.y);
+  }, [nodesData.length, projectionMode]);
 
   // Cargar datos desde la API
   const loadData = useCallback(async () => {
@@ -200,19 +360,26 @@ function Scene3D() {
     setError(null);
     
     try {
+      if (visualReferenceMode) {
+        setNodesData(VISUAL_REFERENCE_NODES);
+        setLinksData(VISUAL_REFERENCE_LINKS);
+        setStats(VISUAL_REFERENCE_STATS);
+        setBreakdown(VISUAL_REFERENCE_STATS.breakdown ?? EMPTY_BREAKDOWN);
+        setSystemCoherence(0.78);
+        setUsingRealData(false);
+        setSelectedNode(VISUAL_REFERENCE_NODES[1]);
+        return;
+      }
+
       const response = await fetch('/api/tablero-3d');
       
       if (!response.ok) {
         if (response.status === 401) {
-          // No autenticado, usar datos de ejemplo
-          console.log('Usuario no autenticado, usando datos de ejemplo');
-          setNodesData(EXAMPLE_NODES);
-          setLinksData(EXAMPLE_LINKS);
-          setStats({ 
-            total: EXAMPLE_NODES.length, 
-            avgEnergy: Math.round(EXAMPLE_NODES.reduce((a, n) => a + n.energy, 0) / EXAMPLE_NODES.length * 100),
-            connections: EXAMPLE_LINKS.length 
-          });
+          setNodesData(EMPTY_NODES);
+          setLinksData([]);
+          setStats(EMPTY_STATS);
+          setBreakdown(EMPTY_BREAKDOWN);
+          setSystemCoherence(0);
           setUsingRealData(false);
           return;
         }
@@ -227,34 +394,28 @@ function Scene3D() {
         setStats(data.stats);
         setUsingRealData(true);
         if (data.stats.breakdown) {
-          setBreakdown(data.stats.breakdown);
+          setBreakdown(data.stats.breakdown ?? EMPTY_BREAKDOWN);
         }
         if (data.stats.coherence?.overall) {
           setSystemCoherence(data.stats.coherence.overall / 100);
         }
       } else {
-        // Si no hay datos reales, usar datos de ejemplo
-        setNodesData(EXAMPLE_NODES);
-        setLinksData(EXAMPLE_LINKS);
-        setStats({ 
-          total: EXAMPLE_NODES.length, 
-          avgEnergy: Math.round(EXAMPLE_NODES.reduce((a, n) => a + n.energy, 0) / EXAMPLE_NODES.length * 100),
-          connections: EXAMPLE_LINKS.length 
-        });
+        setNodesData(EMPTY_NODES);
+        setLinksData([]);
+        setStats(EMPTY_STATS);
+        setBreakdown(EMPTY_BREAKDOWN);
+        setSystemCoherence(0);
         setUsingRealData(false);
       }
     } catch (err) {
       console.error('Error cargando datos:', err);
-      // Usar datos de ejemplo en caso de error
-      setNodesData(EXAMPLE_NODES);
-      setLinksData(EXAMPLE_LINKS);
-      setStats({ 
-        total: EXAMPLE_NODES.length, 
-        avgEnergy: Math.round(EXAMPLE_NODES.reduce((a, n) => a + n.energy, 0) / EXAMPLE_NODES.length * 100),
-        connections: EXAMPLE_LINKS.length 
-      });
+      setNodesData(EMPTY_NODES);
+      setLinksData([]);
+      setStats(EMPTY_STATS);
+      setBreakdown(EMPTY_BREAKDOWN);
+      setSystemCoherence(0);
       setUsingRealData(false);
-      setError('Usando datos de ejemplo');
+      setError('No se pudieron cargar datos reales');
     } finally {
       setLoading(false);
     }
@@ -264,6 +425,28 @@ function Scene3D() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadTimelineSnapshots = async () => {
+      try {
+        const response = await fetch('/api/timeline/snapshots?days=365&limit=8');
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!cancelled) {
+          setTimelineSnapshots((data.snapshots || []).slice(-4));
+        }
+      } catch (error) {
+        console.error('Error cargando capturas del mapa:', error);
+      }
+    };
+
+    loadTimelineSnapshots();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Cargar datos de economía cuando se cambia al modo economía
   const loadEconomyData = useCallback(async () => {
@@ -307,9 +490,8 @@ function Scene3D() {
           break;
         case 'reset':
           camera.alpha = Math.PI / 4;
-          camera.beta = Math.PI / 3;
-          camera.radius = 150;
-          camera.target = calculateCenter(nodesData);
+          camera.beta = projectionMode === '2d' ? 0.28 : Math.PI / 3.05;
+          frameNodes();
           break;
       }
     };
@@ -318,17 +500,19 @@ function Scene3D() {
     return () => {
       window.removeEventListener('scene3d-zoom', handleZoomEvent as EventListener);
     };
-  }, [nodesData, calculateCenter]);
+  }, [nodesData, calculateCenter, frameNodes, projectionMode]);
 
-  // Filtrar nodos por visibilidad
+  // Filtrar nodos y vínculos por visibilidad
   useEffect(() => {
     nodeMeshesRef.current.forEach((mesh, nodeId) => {
-      const node = nodesData.find(n => n.id === nodeId);
-      if (node) {
-        mesh.setEnabled(activeFilter === 'all' || node.type === activeFilter);
-      }
+      const isVisible = visibleNodeIds.has(nodeId);
+      mesh.setEnabled(isVisible);
     });
-  }, [activeFilter, nodesData]);
+
+    linkMeshesRef.current.forEach(({ mesh, source, target }) => {
+      mesh.setEnabled(visibleNodeIds.has(source) && visibleNodeIds.has(target));
+    });
+  }, [visibleNodeIds]);
 
   useEffect(() => {
     if (!canvasRef.current || loading || nodesData.length === 0) return;
@@ -342,20 +526,21 @@ function Scene3D() {
     const engine = new BABYLON.Engine(canvasRef.current, true, {
       preserveDrawingBuffer: true,
       stencil: true,
-    });
+    }, true);
+    engine.setHardwareScalingLevel(Math.min(1, 1 / (window.devicePixelRatio || 1)));
     engineRef.current = engine;
 
     // Crear escena
     const scene = new BABYLON.Scene(engine);
-    scene.clearColor = new BABYLON.Color4(0.01, 0.02, 0.08, 1);
+    scene.clearColor = new BABYLON.Color4(0.006, 0.012, 0.035, 1);
     sceneRef.current = scene;
 
     // Cámara con vista isométrica más abierta y centrada
     const camera = new BABYLON.ArcRotateCamera(
       'camera',
       Math.PI / 4,
-      Math.PI / 3,
-      150,
+      Math.PI / 3.05,
+      170,
       new BABYLON.Vector3(0, 20, 0),
       scene
     );
@@ -363,7 +548,7 @@ function Scene3D() {
     camera.upperRadiusLimit = 250;
     camera.lowerBetaLimit = 0.2;
     camera.upperBetaLimit = Math.PI / 2.2;
-    camera.fov = 0.6;
+    camera.fov = 0.52;
     camera.attachControl(canvasRef.current, true);
     camera.wheelPrecision = 15;
     camera.panningSensibility = 30;
@@ -376,7 +561,7 @@ function Scene3D() {
       new BABYLON.Vector3(0, 1, 0),
       scene
     );
-    light1.intensity = 0.7;
+    light1.intensity = 0.48;
     light1.diffuse = new BABYLON.Color3(0.9, 0.95, 1);
     light1.groundColor = new BABYLON.Color3(0.1, 0.1, 0.2);
 
@@ -386,7 +571,7 @@ function Scene3D() {
       new BABYLON.Vector3(0.5, -1, 0.3),
       scene
     );
-    light2.intensity = 0.9;
+    light2.intensity = 0.68;
     light2.position = new BABYLON.Vector3(30, 80, 30);
 
     // Shadow generator
@@ -399,13 +584,14 @@ function Scene3D() {
     Grid3D.create(scene);
 
     // Usar datos del estado (ya cargados desde API o ejemplo)
-    const heightMultiplier = debugMode ? 1.5 : 1;
+    const heightMultiplier = projectionMode === '2d' ? 0 : (debugMode ? 1.5 : 1);
     const nodes = nodesData.map(node => ({
       ...node,
       z: node.z * heightMultiplier,
     }));
 
     const links = linksData;
+    linkMeshesRef.current = [];
 
     // Crear nodos 3D y guardarlos en el ref
     const nodeMeshes = new Map<string, BABYLON.Mesh>();
@@ -417,7 +603,7 @@ function Scene3D() {
       mesh.actionManager = new BABYLON.ActionManager(scene);
       mesh.actionManager.registerAction(
         new BABYLON.ExecuteCodeAction(BABYLON.ActionManager.OnPickTrigger, () => {
-          setSelectedNode(nodeData);
+          focusNode(nodeData);
         })
       );
 
@@ -435,13 +621,16 @@ function Scene3D() {
       const sourceNode = nodes.find((n) => n.id === linkData.source);
       const targetNode = nodes.find((n) => n.id === linkData.target);
       if (sourceNode && targetNode) {
-        Link3D.create(scene, sourceNode, targetNode, linkData);
+        const linkMesh = Link3D.create(scene, sourceNode, targetNode, linkData);
+        linkMeshesRef.current.push({ mesh: linkMesh, source: linkData.source, target: linkData.target });
       }
     });
 
     // Centrar cámara en el centro de los nodos después de crearlos
-    const center = new BABYLON.Vector3(0, 20, 0);
+    const center = calculateCenter(nodes);
     camera.target = center;
+    camera.radius = calculateRadius(nodes);
+    camera.beta = projectionMode === '2d' ? 0.28 : Math.PI / 3.05;
 
     // Crear sistema de partículas
     Particles3D.create(scene);
@@ -461,7 +650,7 @@ function Scene3D() {
       window.removeEventListener('resize', handleResize);
       engine.dispose();
     };
-  }, [debugMode, nodesData, linksData, loading]); // Recrear escena cuando cambien los datos
+  }, [debugMode, nodesData, linksData, loading, projectionMode, calculateCenter, calculateRadius, focusNode]); // Recrear escena cuando cambien los datos
 
   // Loading state
   if (loading) {
@@ -480,35 +669,82 @@ function Scene3D() {
     <>
       <canvas
         ref={canvasRef}
-        className="w-full h-full outline-none"
+        className="h-full w-full outline-none"
         style={{ touchAction: 'none' }}
       />
 
-      {/* Toggle de Modo de Vista - Superior Central */}
-      <div className="absolute top-24 left-1/2 transform -translate-x-1/2 z-50">
-        <div className="bg-black/80 backdrop-blur-md border border-slate-600/50 rounded-full p-1 flex items-center gap-1">
-          <button
-            onClick={() => setViewMode('coherence')}
-            className={`px-4 py-2 rounded-full flex items-center gap-2 transition-all text-sm font-medium ${
-              viewMode === 'coherence'
-                ? 'bg-gradient-to-r from-cyan-500 to-purple-600 text-white shadow-lg'
-                : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
-            }`}
-          >
-            <Target className="h-4 w-4" />
-            Coherencia
-          </button>
-          <button
-            onClick={() => setViewMode('economy')}
-            className={`px-4 py-2 rounded-full flex items-center gap-2 transition-all text-sm font-medium ${
-              viewMode === 'economy'
-                ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white shadow-lg'
-                : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
-            }`}
-          >
-            <DollarSign className="h-4 w-4" />
-            Economía
-          </button>
+      {/* Encabezado estilo constelación */}
+      <div className="pointer-events-none absolute left-7 right-7 top-7 z-50 flex items-start justify-between gap-6">
+        <div>
+          <h1 className="text-[36px] font-semibold tracking-tight text-white drop-shadow-[0_0_22px_rgba(125,211,252,0.25)]">
+            Tu mapa, conectado
+          </h1>
+          <p className="mt-1 text-[18px] text-blue-200/85">
+            {stats.total} {stats.total === 1 ? 'nodo' : 'nodos'} · {stats.connections} {stats.connections === 1 ? 'vínculo' : 'vínculos'}
+          </p>
+        </div>
+
+        <div className="pointer-events-auto flex items-center gap-3">
+          <div className="relative w-[300px]">
+            <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-200/70" />
+            <input
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Buscar en tu mapa..."
+              className="h-12 w-full rounded-2xl border border-blue-200/20 bg-slate-950/45 pl-12 pr-10 text-sm text-white shadow-xl shadow-blue-950/20 outline-none backdrop-blur-xl placeholder:text-blue-200/55 focus:border-cyan-300/60"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-blue-200/60 hover:bg-white/10 hover:text-white"
+                aria-label="Limpiar búsqueda"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+
+            {(searchResults.length > 0 || (normalizedSearch && searchResults.length === 0)) && (
+              <div className="absolute mt-3 w-full overflow-hidden rounded-2xl border border-blue-200/15 bg-slate-950/90 p-2 shadow-2xl shadow-blue-950/40 backdrop-blur-xl">
+                {searchResults.length > 0 ? (
+                  searchResults.map((node) => (
+                    <button
+                      key={node.id}
+                      onClick={() => focusNode(node)}
+                      className="w-full rounded-xl px-3 py-2 text-left hover:bg-cyan-400/10"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="truncate text-sm font-medium text-white">{node.label}</span>
+                        <span className="shrink-0 text-[10px] uppercase tracking-[0.18em] text-blue-200/55">
+                          {NODE_TYPES.find(t => t.id === node.type)?.label || node.type}
+                        </span>
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <p className="px-3 py-2 text-sm text-blue-200/60">No encontré nodos con ese nombre.</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="flex h-12 items-center gap-1 rounded-2xl border border-blue-200/20 bg-slate-950/45 p-1 shadow-xl shadow-blue-950/20 backdrop-blur-xl">
+            <button
+              onClick={() => setProjectionMode('2d')}
+              className={`h-10 rounded-xl px-5 text-sm font-semibold transition-all ${projectionMode === '2d' ? 'bg-cyan-400/20 text-cyan-100 shadow-inner shadow-cyan-300/20' : 'text-blue-200/75 hover:text-white'}`}
+            >
+              2D
+            </button>
+            <button
+              onClick={() => setProjectionMode('3d')}
+              className={`h-10 rounded-xl px-5 text-sm font-semibold transition-all ${projectionMode === '3d' ? 'bg-violet-500 text-white shadow-lg shadow-violet-500/35' : 'text-blue-200/75 hover:text-white'}`}
+            >
+              3D
+            </button>
+          </div>
+
+          <div className="rounded-full border border-cyan-200/25 bg-slate-950/35 px-4 py-1.5 text-xs font-medium text-cyan-100 shadow-xl shadow-cyan-950/20 backdrop-blur-xl">
+            Concepto visual
+          </div>
         </div>
       </div>
 
@@ -548,8 +784,8 @@ function Scene3D() {
 
           {/* Lista de proyectos orbitando */}
           <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 pointer-events-auto">
-            <div className="bg-black/80 backdrop-blur-md border border-slate-600/50 rounded-lg p-3 flex items-center gap-4">
-              <Orbit className="h-5 w-5 text-yellow-400" />
+            <div className="bg-black/80 backdrop-blur-md border border-slate-600/50 rounded-lg p-3 flex items-center gap-3">
+              <Orbit className="h-4 w-4 text-yellow-400" />
               <span className="text-sm text-slate-400">Proyectos Orbitando:</span>
               {economyData.projects.length === 0 ? (
                 <span className="text-xs text-slate-500">Ningún proyecto registrado</span>
@@ -585,64 +821,44 @@ function Scene3D() {
         </div>
       )}
 
-      {/* Panel de Controles Superior Izquierdo */}
-      <div className="absolute top-24 left-6 z-50 space-y-3" style={{ marginTop: viewMode === 'economy' ? '60px' : '0' }}>
-        {/* Indicador de tipo de datos */}
-        <div className={`px-4 py-2 rounded-lg text-xs font-medium flex items-center gap-2 ${
-          usingRealData 
-            ? 'bg-green-500/20 border border-green-500/50 text-green-300' 
-            : 'bg-yellow-500/20 border border-yellow-500/50 text-yellow-300'
-        }`}>
-          {usingRealData ? (
-            <>
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-              Datos Reales
-            </>
-          ) : (
-            <>
-              <AlertCircle className="w-3 h-3" />
-              Datos de Ejemplo
-            </>
-          )}
+      {/* Controles inferiores y memoria del mapa */}
+      <div className="pointer-events-none absolute bottom-7 left-7 right-7 z-50 space-y-5 2xl:right-[388px]">
+        <div className="pointer-events-auto flex flex-wrap items-center gap-3">
           <button
-            onClick={loadData}
-            className="ml-2 p-1 hover:bg-white/10 rounded transition-colors"
-            title="Recargar datos"
+            onClick={() => frameNodes()}
+            className="flex h-12 items-center gap-3 rounded-2xl border border-blue-200/20 bg-slate-950/55 px-5 text-sm font-medium text-white shadow-xl shadow-blue-950/25 backdrop-blur-xl hover:border-cyan-300/50 hover:bg-cyan-400/10"
           >
-            <RefreshCw className="w-3 h-3" />
+            <Maximize2 className="h-4 w-4 text-blue-100" />
+            Centrar mapa
+          </button>
+
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`flex h-12 items-center gap-3 rounded-2xl border px-5 text-sm font-medium shadow-xl shadow-blue-950/25 backdrop-blur-xl transition-all ${showFilters ? 'border-violet-300/50 bg-violet-500/25 text-white' : 'border-blue-200/20 bg-slate-950/55 text-blue-100 hover:border-violet-300/50 hover:bg-violet-400/10'}`}
+          >
+            <Filter className="h-4 w-4" />
+            Filtros
+          </button>
+
+          <div className="flex h-12 items-center gap-3 rounded-2xl border border-blue-200/20 bg-slate-950/55 px-5 text-sm text-blue-100 shadow-xl shadow-blue-950/25 backdrop-blur-xl">
+            <span className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-cyan-300 shadow-[0_0_12px_rgba(103,232,249,0.9)]" />Tú</span>
+            <span className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-violet-400 shadow-[0_0_12px_rgba(167,139,250,0.9)]" />Proyecto</span>
+            <span className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-emerald-300 shadow-[0_0_12px_rgba(110,231,183,0.9)]" />Relación</span>
+          </div>
+
+          <button
+            onClick={() => setDebugMode(!debugMode)}
+            className="flex h-12 items-center gap-3 rounded-2xl border border-blue-200/20 bg-slate-950/55 px-5 text-sm font-medium text-blue-100 shadow-xl shadow-blue-950/25 backdrop-blur-xl hover:border-cyan-300/50 hover:bg-cyan-400/10"
+          >
+            <Network className="h-4 w-4" />
+            {debugMode ? 'Reducir alturas' : 'Resaltar alturas'}
           </button>
         </div>
 
-        {/* Botón de Modo Debug */}
-        <button
-          onClick={() => setDebugMode(!debugMode)}
-          className={`px-5 py-2.5 rounded-lg font-semibold shadow-xl transition-all transform hover:scale-105 text-sm ${
-            debugMode
-              ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white border border-red-300'
-              : 'bg-gradient-to-r from-cyan-500 to-purple-600 text-white border border-cyan-300/50 hover:from-cyan-600 hover:to-purple-700'
-          }`}
-        >
-          {debugMode ? '🔴 Desactivar Debug 3D' : '🎯 Activar Modo Debug 3D'}
-        </button>
-
-        {/* Botón de Filtros */}
-        <button
-          onClick={() => setShowFilters(!showFilters)}
-          className={`w-full px-5 py-2.5 rounded-lg font-semibold shadow-xl transition-all flex items-center justify-center gap-2 text-sm ${
-            showFilters
-              ? 'bg-purple-600 text-white border border-purple-400'
-              : 'bg-black/70 backdrop-blur-sm text-slate-200 border border-slate-600 hover:bg-slate-800'
-          }`}
-        >
-          <Filter className="h-4 w-4" />
-          Filtrar Nodos
-        </button>
-
-        {/* Panel de Filtros */}
         {showFilters && (
-          <Card className="bg-black/90 backdrop-blur-md border-purple-500/50 p-4 shadow-2xl">
-            <p className="text-purple-300 text-xs font-semibold mb-3 uppercase tracking-wider">Tipos de Nodo</p>
-            <div className="space-y-2">
+          <Card className="pointer-events-auto w-80 border-blue-200/20 bg-slate-950/85 p-4 shadow-2xl shadow-blue-950/40 backdrop-blur-xl">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-blue-200/70">Tipos de elemento</p>
+            <div className="grid grid-cols-2 gap-2">
               {NODE_TYPES.map((type) => {
                 const Icon = type.icon;
                 const isActive = activeFilter === type.id;
@@ -650,15 +866,12 @@ function Scene3D() {
                   <button
                     key={type.id}
                     onClick={() => setActiveFilter(type.id)}
-                    className={`w-full px-3 py-2 rounded-lg flex items-center gap-3 transition-all text-sm ${
-                      isActive
-                        ? 'bg-purple-500/30 border border-purple-400/50 text-white'
-                        : 'bg-slate-800/50 border border-slate-700 text-slate-300 hover:bg-slate-700/50'
-                    }`}
+                    className={`rounded-xl border px-3 py-2 text-left text-sm transition-all ${isActive ? 'border-cyan-300/50 bg-cyan-400/15 text-white' : 'border-blue-200/10 bg-white/[0.03] text-blue-100/75 hover:bg-white/[0.07]'}`}
                   >
-                    <Icon className="h-4 w-4" style={{ color: type.color }} />
-                    <span>{type.label}</span>
-                    {isActive && <Eye className="h-3 w-3 ml-auto text-purple-400" />}
+                    <span className="flex items-center gap-2">
+                      <Icon className="h-4 w-4" style={{ color: type.color }} />
+                      {type.label}
+                    </span>
                   </button>
                 );
               })}
@@ -666,283 +879,213 @@ function Scene3D() {
           </Card>
         )}
 
-        {/* Estadísticas */}
-        <Card className="bg-black/80 backdrop-blur-md border-cyan-500/30 p-4">
-          <p className="text-cyan-400 text-xs font-semibold mb-3 uppercase tracking-wider">Estadísticas</p>
-          <div className="grid grid-cols-3 gap-3 text-center mb-3">
-            <div>
-              <p className="text-2xl font-bold text-white">{stats.total}</p>
-              <p className="text-xs text-slate-400">Nodos</p>
+        <Card className="pointer-events-auto border-blue-200/20 bg-slate-950/55 p-4 shadow-2xl shadow-blue-950/30 backdrop-blur-xl">
+          <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 lg:grid-cols-[auto_minmax(180px,240px)_auto] 2xl:grid-cols-[auto_240px_minmax(260px,1fr)_auto]">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full border border-blue-200/20 bg-blue-400/10">
+              <Layers className="h-6 w-6 text-blue-100" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-cyan-400">{stats.avgEnergy}%</p>
-              <p className="text-xs text-slate-400">Energía</p>
+              <p className="text-base font-semibold text-white">Memoria del mapa</p>
+              <p className="text-xs text-blue-200/70">{timelineHelpText}</p>
             </div>
-            <div>
-              <p className="text-2xl font-bold text-purple-400">{stats.connections}</p>
-              <p className="text-xs text-slate-400">Links</p>
-            </div>
-          </div>
-          {/* Breakdown por tipo */}
-          {Object.keys(breakdown).length > 0 && (
-            <div className="pt-3 border-t border-slate-700/50">
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                {breakdown.projects !== undefined && (
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-[#ff00ff]" />
-                    <span className="text-slate-400">{breakdown.projects} proyectos</span>
-                  </div>
-                )}
-                {breakdown.relationships !== undefined && (
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-[#ffaa00]" />
-                    <span className="text-slate-400">{breakdown.relationships} relaciones</span>
-                  </div>
-                )}
-                {breakdown.intentions !== undefined && (
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-[#00ff88]" />
-                    <span className="text-slate-400">{breakdown.intentions} intenciones</span>
-                  </div>
-                )}
-                {breakdown.manifestations !== undefined && (
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-[#ff0088]" />
-                    <span className="text-slate-400">{breakdown.manifestations} manifest.</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </Card>
-
-        {debugMode && (
-          <div className="p-3 bg-red-500/20 border border-red-500/50 rounded-lg">
-            <p className="text-red-300 text-xs font-bold text-center">
-              🔍 MODO DEBUG ACTIVO
-            </p>
-            <p className="text-slate-300 text-xs text-center mt-1">
-              Alturas x6 - Perspectiva exagerada
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Leyenda de Colores - Esquina Superior Derecha (debajo del panel de info) */}
-      <div className="absolute top-[420px] right-6 z-30">
-        <Card className="bg-black/80 backdrop-blur-md border-slate-600/50 p-3">
-          <p className="text-slate-400 text-xs font-semibold mb-2 uppercase tracking-wider">Leyenda</p>
-          <div className="space-y-1.5">
-            {NODE_TYPES.filter(t => t.id !== 'all').map((type) => (
-              <div key={type.id} className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: type.color, boxShadow: `0 0 8px ${type.color}` }} />
-                <span className="text-xs text-slate-300">{type.label}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
-
-      {/* Panel de información del nodo seleccionado - MOTOR DE SIGNIFICADO */}
-      {selectedNode && nodeInterpretation && (
-        <div className="absolute top-20 right-6 z-40 w-96 animate-in slide-in-from-right">
-          <Card className="bg-black/95 backdrop-blur-md border-cyan-500/50 p-6 shadow-2xl shadow-cyan-500/20">
-            {/* Header con estado */}
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-2xl">{nodeInterpretation.statusEmoji}</span>
-                  <h3 className="text-xl font-bold text-white">{selectedNode.label}</h3>
+            <div className="hidden min-w-0 items-center gap-0 2xl:flex">
+              {timelineSnapshots.length === 0 ? (
+                <div className="flex w-full items-center justify-center rounded-2xl border border-blue-200/15 bg-slate-950/35 px-4 py-3 text-sm text-blue-200/60">
+                  Sin capturas reales todavía
                 </div>
-                <div className="flex items-center gap-2">
-                  <div 
-                    className="px-2 py-0.5 rounded-full text-xs font-bold"
-                    style={{ 
-                      backgroundColor: `${nodeInterpretation.statusColor}20`,
-                      color: nodeInterpretation.statusColor,
-                      border: `1px solid ${nodeInterpretation.statusColor}50`
-                    }}
-                  >
-                    {nodeInterpretation.statusLabel}
+              ) : (
+                timelineSnapshots.map((snapshot, index) => {
+                  const selected = selectedSnapshotIds.includes(snapshot.id);
+                  const latest = index === timelineSnapshots.length - 1;
+                  return (
+                    <div key={snapshot.id} className="flex min-w-0 flex-1 items-center">
+                      <button
+                        onClick={() => toggleSnapshotSelection(snapshot.id)}
+                        className="group flex min-w-0 flex-1 flex-col items-center gap-2 rounded-2xl px-2 py-1.5 transition hover:bg-cyan-400/10"
+                        title={`Captura ${formatSnapshotDate(snapshot.createdAt)}`}
+                      >
+                        <span className={`h-4 w-4 rounded-full border transition ${selected ? 'border-cyan-200 bg-cyan-300 shadow-[0_0_18px_rgba(103,232,249,0.95)]' : latest ? 'border-violet-300 bg-violet-400 shadow-[0_0_16px_rgba(167,139,250,0.9)]' : 'border-blue-200/70 bg-slate-950'}`} />
+                        <span className={`max-w-[9rem] truncate text-center text-[11px] leading-tight ${selected ? 'text-cyan-100' : 'text-blue-200/65'}`}>
+                          {formatSnapshotDate(snapshot.createdAt)}
+                        </span>
+                      </button>
+                      {index < timelineSnapshots.length - 1 && <div className="h-px w-8 shrink-0 bg-blue-200/25" />}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            <div className="col-span-2 flex min-w-0 items-center gap-3 lg:col-span-1 lg:justify-end">
+              <button disabled={timelineSnapshots.length < 2} title={timelineSnapshots.length < 2 ? 'Necesitas al menos dos capturas reales para reproducir la evolución.' : 'Reproducir evolución'} className="flex h-12 w-12 items-center justify-center rounded-full border border-blue-200/30 bg-slate-950/50 text-blue-100 hover:bg-blue-400/10 disabled:cursor-not-allowed disabled:text-slate-500 disabled:hover:bg-slate-950/50" aria-label="Reproducir evolución">
+                <Play className="h-4 w-4 fill-current" />
+              </button>
+              <button disabled={!canCompareSnapshots} title={timelineHelpText} className="flex h-12 items-center gap-3 rounded-2xl bg-gradient-to-r from-cyan-300 to-violet-500 px-5 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 disabled:cursor-not-allowed disabled:from-slate-700 disabled:to-slate-700 disabled:text-slate-400 disabled:shadow-none">
+                <BarChart3 className="h-4 w-4" />
+                {canCompareSnapshots ? 'Comparar capturas' : 'Selecciona 2'}
+              </button>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* Panel de información del nodo seleccionado */}
+      {selectedNode && (
+        <div className="absolute right-6 top-[118px] z-40 w-[370px] max-h-[calc(100vh-9rem)] animate-in slide-in-from-right overflow-y-auto pr-1">
+          <Card className="overflow-hidden border-blue-200/20 bg-slate-950/72 shadow-2xl shadow-blue-950/40 backdrop-blur-2xl">
+            <div className="p-5">
+              <div className="mb-5 flex items-start justify-between gap-4">
+                <div className="flex min-w-0 items-center gap-4">
+                  <div className={`flex h-[74px] w-[74px] shrink-0 items-center justify-center rounded-2xl border shadow-2xl ${selectedNode.type === 'project' ? 'border-violet-300/30 bg-violet-500/15 shadow-violet-900/35' : selectedNode.type === 'relationship' ? 'border-emerald-300/30 bg-emerald-400/15 shadow-emerald-900/30' : 'border-yellow-200/35 bg-yellow-300/15 shadow-yellow-900/30'}`}>
+                    <span className="text-4xl">
+                      {selectedNode.type === 'project' ? '▣' : selectedNode.type === 'relationship' ? '●' : '◉'}
+                    </span>
                   </div>
-                  <p className="text-xs text-slate-400 uppercase tracking-wider">
-                    {NODE_TYPES.find(t => t.id === selectedNode.type)?.label || selectedNode.type}
+                  <div className="min-w-0">
+                    <h3 className="truncate text-[22px] font-semibold leading-tight text-white">{selectedNode.label}</h3>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <span className="rounded-full border border-cyan-300/40 bg-cyan-400/10 px-3 py-1 text-xs font-semibold text-cyan-100">
+                        {NODE_TYPES.find(t => t.id === selectedNode.type)?.label || selectedNode.type}
+                      </span>
+                      {hasSufficientEvidence && nodeInterpretation ? (
+                        <span className="rounded-full border px-3 py-1 text-xs font-semibold" style={{ borderColor: `${nodeInterpretation.statusColor}70`, color: nodeInterpretation.statusColor, backgroundColor: `${nodeInterpretation.statusColor}18` }}>
+                          {nodeInterpretation.statusLabel}
+                        </span>
+                      ) : (
+                        <span className="rounded-full border border-blue-200/20 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-blue-100/70">
+                          Datos fuente
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedNode(null)}
+                  className="rounded-full p-2 text-blue-100/55 transition hover:bg-white/10 hover:text-white"
+                  aria-label="Cerrar detalle"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="mb-5 border-t border-blue-200/15 pt-4">
+                <p className="text-xs font-medium text-blue-200/70">Descripción</p>
+                <p className="mt-1 text-base leading-relaxed text-white/92">
+                  {selectedNode.metadata?.description || (selectedNode.type === 'self' ? 'Centro de tu mapa' : selectedNode.type === 'project' ? 'Proyecto conectado al observador' : selectedNode.type === 'relationship' ? 'Relación conectada al observador' : 'Elemento conectado')}
+                </p>
+              </div>
+
+              <div className="mb-5 rounded-2xl border border-cyan-200/15 bg-cyan-300/[0.045] p-3 text-xs leading-relaxed text-blue-100/70">
+                Energía y coherencia aquí son valores fuente del nodo. El mapa no emite diagnóstico hasta completar las señales requeridas.
+              </div>
+
+              <div className="mb-5 space-y-4">
+                <div>
+                  <div className="mb-2 flex items-center justify-between text-sm">
+                    <span className="text-blue-100/75">{selectedNode.type === 'project' ? 'Energía dedicada' : 'Energía del nodo'}</span>
+                    <span className="font-semibold text-white">
+                      {selectedNode.metadata?.energyInvested != null ? `${selectedNode.metadata.energyInvested}/10` : `${selectedSourceEnergy}%`}
+                    </span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-blue-200/12">
+                    <div className="h-full rounded-full bg-gradient-to-r from-cyan-300 to-sky-500" style={{ width: `${selectedNode.metadata?.energyInvested != null ? Math.min(100, Number(selectedNode.metadata.energyInvested) * 10) : selectedSourceEnergy}%` }} />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="mb-2 flex items-center justify-between text-sm">
+                    <span className="text-blue-100/75">{selectedNode.type === 'project' ? 'Impacto esperado' : 'Coherencia fuente'}</span>
+                    <span className="font-semibold text-white">
+                      {selectedNode.metadata?.impactLevel != null ? `${selectedNode.metadata.impactLevel}/10` : `${selectedSourceCoherence}%`}
+                    </span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-blue-200/12">
+                    <div className="h-full rounded-full bg-gradient-to-r from-amber-300 via-yellow-300 to-violet-400" style={{ width: `${selectedNode.metadata?.impactLevel != null ? Math.min(100, Number(selectedNode.metadata.impactLevel) * 10) : selectedSourceCoherence}%` }} />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="mb-2 flex items-center justify-between text-sm">
+                    <span className="text-blue-100/75">Progreso</span>
+                    <span className="font-semibold text-white">{selectedNode.metadata?.progress != null ? `${selectedNode.metadata.progress}%` : '—'}</span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-blue-200/12">
+                    <div className="h-full rounded-full bg-gradient-to-r from-emerald-300 to-cyan-300" style={{ width: `${selectedNode.metadata?.progress != null ? Math.min(100, Number(selectedNode.metadata.progress)) : 0}%` }} />
+                  </div>
+                </div>
+              </div>
+
+              {!hasSufficientEvidence && (
+                <div className="mb-5 rounded-2xl border border-blue-200/15 bg-white/[0.035] p-4">
+                  <p className="text-sm font-semibold text-white">Sin diagnóstico todavía</p>
+                  <p className="mt-1 text-xs leading-relaxed text-blue-100/65">
+                    Faltan {missingEvidence.join(', ') || 'señales'} para activar recomendaciones. Aquí solo mostramos los valores fuente del mapa.
                   </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setSelectedNode(null)}
-                className="text-slate-400 hover:text-white transition-colors p-1 hover:bg-slate-700 rounded"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            {/* Métricas principales */}
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <div className="bg-slate-900/50 rounded-lg p-3">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-slate-400">Energía</span>
-                  <Zap className="w-3 h-3 text-yellow-400" />
-                </div>
-                <div className="flex items-end gap-1">
-                  <span className="text-2xl font-bold text-white">
-                    {(nodeInterpretation.metrics.energy * 100).toFixed(0)}
-                  </span>
-                  <span className="text-xs text-slate-500 mb-1">%</span>
-                </div>
-                <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden mt-1">
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{ 
-                      width: `${nodeInterpretation.metrics.energy * 100}%`,
-                      backgroundColor: nodeInterpretation.statusColor
-                    }}
-                  />
-                </div>
-              </div>
-              
-              <div className="bg-slate-900/50 rounded-lg p-3">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-slate-400">Coherencia</span>
-                  {nodeInterpretation.metrics.coherence >= 0.6 ? (
-                    <TrendingUp className="w-3 h-3 text-green-400" />
-                  ) : (
-                    <TrendingDown className="w-3 h-3 text-red-400" />
-                  )}
-                </div>
-                <div className="flex items-end gap-1">
-                  <span className="text-2xl font-bold text-white">
-                    {(nodeInterpretation.metrics.coherence * 100).toFixed(0)}
-                  </span>
-                  <span className="text-xs text-slate-500 mb-1">%</span>
-                </div>
-                <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden mt-1">
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{ 
-                      width: `${nodeInterpretation.metrics.coherence * 100}%`,
-                      backgroundColor: nodeInterpretation.metrics.coherence >= 0.6 ? '#00FF88' : '#FF4500'
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Stats secundarios */}
-            <div className="grid grid-cols-3 gap-2 mb-4 text-center">
-              <div className="bg-slate-900/30 rounded-lg p-2">
-                <p className="text-xs text-slate-500">Conexiones</p>
-                <p className="text-lg font-bold text-cyan-400">{nodeInterpretation.metrics.connections}</p>
-              </div>
-              <div className="bg-slate-900/30 rounded-lg p-2">
-                <p className="text-xs text-slate-500">Fuerza</p>
-                <p className="text-lg font-bold text-purple-400">
-                  {(nodeInterpretation.metrics.avgLinkStrength * 100).toFixed(0)}%
-                </p>
-              </div>
-              <div className="bg-slate-900/30 rounded-lg p-2">
-                <p className="text-xs text-slate-500">Score</p>
-                <p className="text-lg font-bold text-white">
-                  {nodeInterpretation.metrics.score.toFixed(1)}
-                </p>
-              </div>
-            </div>
-
-            {/* Recomendación - MOTOR DE SIGNIFICADO */}
-            <div 
-              className="rounded-lg p-4 mb-4"
-              style={{ 
-                backgroundColor: `${nodeInterpretation.statusColor}10`,
-                border: `1px solid ${nodeInterpretation.statusColor}30`
-              }}
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <ArrowRight className="w-4 h-4" style={{ color: nodeInterpretation.statusColor }} />
-                <span className="text-sm font-semibold text-white">Recomendación</span>
-              </div>
-              <p className="text-sm text-slate-300 leading-relaxed">
-                {nodeInterpretation.recommendation}
-              </p>
-            </div>
-
-            {/* Acción sugerida */}
-            <div className="flex items-center justify-between pt-3 border-t border-slate-700">
-              <span className="text-xs text-slate-400">Acción sugerida</span>
-              <div 
-                className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${
-                  nodeInterpretation.action === 'Mantener' ? 'bg-green-500/20 text-green-400' :
-                  nodeInterpretation.action === 'Invertir' ? 'bg-cyan-500/20 text-cyan-400' :
-                  nodeInterpretation.action === 'Delegar' ? 'bg-blue-500/20 text-blue-400' :
-                  nodeInterpretation.action === 'Corregir' ? 'bg-yellow-500/20 text-yellow-400' :
-                  nodeInterpretation.action === 'Reformular' ? 'bg-orange-500/20 text-orange-400' :
-                  'bg-red-500/20 text-red-400'
-                }`}
-              >
-                {nodeInterpretation.action}
-              </div>
-            </div>
-
-            {/* Indicador de urgencia */}
-            {nodeInterpretation.urgency !== 'low' && (
-              <div className={`mt-3 px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2 ${
-                nodeInterpretation.urgency === 'critical' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
-                nodeInterpretation.urgency === 'high' ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' :
-                'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
-              }`}>
-                <AlertCircle className="w-3 h-3" />
-                {nodeInterpretation.urgency === 'critical' && 'Requiere atención inmediata'}
-                {nodeInterpretation.urgency === 'high' && 'Prioridad alta'}
-                {nodeInterpretation.urgency === 'medium' && 'Monitorear activamente'}
-              </div>
-            )}
-
-            {/* Botón de Análisis IA */}
-            <div className="mt-4 pt-4 border-t border-slate-700">
-              <button
-                onClick={() => analyzeNodeWithAI(selectedNode)}
-                disabled={aiAnalysis.loading}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-700 hover:to-cyan-700 text-white rounded-lg font-medium transition-all disabled:opacity-50"
-              >
-                {aiAnalysis.loading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Analizando con IA...
-                  </>
-                ) : (
-                  <>
-                    <Brain className="w-4 h-4" />
-                    Análisis IA Profundo
-                  </>
-                )}
-              </button>
-
-              {/* Resultado del análisis IA */}
-              {aiAnalysis.result && (
-                <div className="mt-3 p-3 bg-purple-950/30 border border-purple-500/30 rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Brain className="w-4 h-4 text-purple-400" />
-                    <span className="text-sm font-semibold text-purple-300">Diagnóstico IA</span>
-                  </div>
-                  <p className="text-sm text-slate-300 mb-2">{aiAnalysis.result.diagnosis}</p>
-                  <div className="flex gap-2 mb-2">
-                    <span className="text-xs px-2 py-0.5 bg-cyan-500/20 text-cyan-400 rounded-full">
-                      Coherencia: {(aiAnalysis.result.coherence * 100).toFixed(0)}%
-                    </span>
-                    <span className="text-xs px-2 py-0.5 bg-yellow-500/20 text-yellow-400 rounded-full">
-                      Energía: {(aiAnalysis.result.energy * 100).toFixed(0)}%
-                    </span>
-                  </div>
-                  <p className="text-xs text-purple-300/80 italic">{aiAnalysis.result.recommendation}</p>
                 </div>
               )}
 
-              {aiAnalysis.error && (
-                <div className="mt-3 p-3 bg-red-950/30 border border-red-500/30 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-red-400" />
-                    <span className="text-sm text-red-300">{aiAnalysis.error}</span>
+              <div className="mb-5 grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-2xl bg-white/[0.04] p-3">
+                  <p className="text-[11px] text-blue-100/50">Vínculos</p>
+                  <p className="mt-1 text-lg font-semibold text-cyan-200">{selectedConnections.length}</p>
+                </div>
+                <div className="rounded-2xl bg-white/[0.04] p-3">
+                  <p className="text-[11px] text-blue-100/50">Fuerza</p>
+                  <p className="mt-1 text-lg font-semibold text-violet-200">{selectedConnections.length > 0 ? `${Math.round((selectedConnections.reduce((sum, link) => sum + link.strength, 0) / selectedConnections.length) * 100)}%` : '—'}</p>
+                </div>
+                <div className="rounded-2xl bg-white/[0.04] p-3">
+                  <p className="text-[11px] text-blue-100/50">Cambio</p>
+                  <p className="mt-1 truncate text-sm font-semibold text-white">{selectedLastChange || '—'}</p>
+                </div>
+              </div>
+
+              {selectedConnections.length > 0 && (
+                <div className="mb-5 rounded-2xl border border-blue-200/15 bg-slate-950/45 p-4">
+                  <div className="mb-3 flex items-center gap-2">
+                    <Network className="h-4 w-4 text-cyan-200" />
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-100/55">Conexiones</p>
                   </div>
+                  <div className="space-y-2">
+                    {selectedConnections.slice(0, 3).map((connection) => (
+                      <button
+                        key={`${connection.source}-${connection.target}`}
+                        onClick={() => connection.otherNode && focusNode(connection.otherNode)}
+                        className="flex w-full items-center justify-between gap-3 rounded-xl border border-blue-200/10 bg-white/[0.035] px-3 py-2 text-left transition hover:border-cyan-300/40 hover:bg-cyan-400/10"
+                      >
+                        <span className="min-w-0 truncate text-sm font-medium text-white">{connection.otherNode?.label}</span>
+                        <span className="shrink-0 rounded-full bg-cyan-400/10 px-2 py-0.5 text-[11px] text-cyan-200">{Math.round(connection.strength * 100)}%</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <button
+                  onClick={() => focusNode(selectedNode)}
+                  className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-300 to-violet-500 px-4 text-sm font-semibold text-slate-950 shadow-lg shadow-violet-500/25 transition hover:brightness-110"
+                >
+                  <Target className="h-4 w-4" />
+                  Centrar en el mapa
+                </button>
+                {hasSufficientEvidence && nodeInterpretation && (
+                  <button
+                    onClick={() => analyzeNodeWithAI(selectedNode)}
+                    disabled={aiAnalysis.loading}
+                    className="flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-blue-200/15 bg-white/[0.04] px-4 text-sm font-medium text-blue-100 transition hover:bg-white/[0.08] disabled:opacity-50"
+                  >
+                    {aiAnalysis.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
+                    {aiAnalysis.loading ? 'Analizando...' : 'Análisis IA'}
+                  </button>
+                )}
+              </div>
+
+              {hasSufficientEvidence && nodeInterpretation && (
+                <div className="mt-5 rounded-2xl border border-blue-200/15 bg-white/[0.035] p-4">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <span className="text-sm font-semibold text-white">Siguiente acción</span>
+                    <span className="rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-semibold text-emerald-200">{nodeInterpretation.action}</span>
+                  </div>
+                  <p className="text-sm leading-relaxed text-blue-100/75">{nodeInterpretation.recommendation}</p>
                 </div>
               )}
             </div>

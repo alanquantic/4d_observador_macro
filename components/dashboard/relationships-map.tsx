@@ -118,6 +118,27 @@ export function RelationshipsMap() {
     }
   };
 
+  const getEnergyExchangeLabel = (exchange: string) => {
+    const labels: Record<string, string> = {
+      giving: 'Dando',
+      receiving: 'Recibiendo',
+      balanced: 'Equilibrado',
+      draining: 'Drenante',
+    };
+    return labels[exchange] || exchange.replace(/_/g, ' ');
+  };
+
+  const getRelationshipTypeLabel = (type: string) => {
+    const labels: Record<string, string> = {
+      mentor: 'Mentor',
+      personal: 'Personal',
+      professional: 'Profesional',
+      spiritual: 'Espiritual',
+      family: 'Familia',
+    };
+    return labels[type] || type.replace(/_/g, ' ');
+  };
+
   const getEnergyExchangeColor = (exchange: string) => {
     switch (exchange) {
       case 'giving':
@@ -218,6 +239,7 @@ export function RelationshipsMap() {
           <Button 
             variant="ghost" 
             size="sm"
+            aria-label="Agregar relación"
             onClick={() => setShowAddForm(!showAddForm)}
             className="text-pink-300 hover:text-pink-100 hover:bg-pink-500/20"
           >
@@ -321,7 +343,7 @@ export function RelationshipsMap() {
                 : 'text-slate-400 hover:text-slate-200'
               }
             >
-              {type} ({relationships.filter(r => r.relationshipType === type).length})
+              {getRelationshipTypeLabel(type)} ({relationships.filter(r => r.relationshipType === type).length})
             </Button>
           ))}
         </div>
@@ -366,7 +388,7 @@ export function RelationshipsMap() {
                           variant="outline" 
                           className={`text-xs ${getRelationshipTypeColor(relationship.relationshipType)}`}
                         >
-                          {relationship.relationshipType}
+                          {getRelationshipTypeLabel(relationship.relationshipType)}
                         </Badge>
                       </div>
                       
@@ -406,7 +428,7 @@ export function RelationshipsMap() {
                     >
                       <span className="flex items-center gap-1">
                         {getEnergyExchangeIcon(relationship.energyExchange)}
-                        {relationship.energyExchange}
+                        {getEnergyExchangeLabel(relationship.energyExchange)}
                       </span>
                     </Badge>
                   </div>
@@ -467,12 +489,30 @@ export function RelationshipsMap() {
               ))}
             </div>
           ) : (
-            <div className="text-center py-8 text-slate-400">
-              <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <p>No hay relaciones {filter !== 'all' ? `del tipo ${filter}` : ''}</p>
-              <p className="text-sm mt-1">
-                Las relaciones son la red energética que sostiene tu realidad 4D
+            <div className="rounded-2xl border border-pink-500/20 bg-pink-500/5 p-6 text-center text-slate-300">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-pink-500/15 text-pink-300">
+                <Users className="h-7 w-7" />
+              </div>
+              <h3 className="text-lg font-semibold text-white">
+                {filter !== 'all' ? `No hay relaciones del tipo ${filter}` : 'Agrega tu primera relación'}
+              </h3>
+              <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-slate-400">
+                Añade a una persona que influye en tu energía o decisiones. Después podrás ver calidad de conexión, balance de intercambio y frecuencia de contacto.
               </p>
+              <div className="mt-4 flex flex-wrap justify-center gap-2 text-xs text-pink-200">
+                {['Aliado', 'Cliente', 'Mentor', 'Familia'].map(example => (
+                  <span key={example} className="rounded-full border border-pink-400/20 bg-pink-400/10 px-3 py-1">
+                    {example}
+                  </span>
+                ))}
+              </div>
+              <Button
+                onClick={() => setShowAddForm(true)}
+                className="mt-5 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Agregar primera relación
+              </Button>
             </div>
           )}
         </div>

@@ -4,22 +4,31 @@
 import { Suspense, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { ArrowLeft, Maximize2, Info, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { CalendarDays, Cuboid, Home, Link2, Network, NotebookText, PlugZap, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 const Scene3D = dynamic(() => import('@/components/tablero3d/Scene3D').then((mod) => mod.default), {
   ssr: false,
   loading: () => (
-    <div className="h-screen w-full bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-900 flex items-center justify-center">
+    <div className="h-full w-full bg-[#061225] flex items-center justify-center">
       <div className="text-center space-y-4">
-        <div className="w-16 h-16 border-4 border-t-cyan-400 border-r-purple-500 border-b-pink-500 border-l-cyan-400 rounded-full animate-spin mx-auto"></div>
-        <p className="text-cyan-400 font-light text-lg">Inicializando Tablero 4D...</p>
-        <p className="text-slate-400 text-sm">Cargando motor 3D y realidad cuántica</p>
+        <div className="w-16 h-16 border-4 border-t-cyan-300 border-r-violet-500 border-b-blue-500 border-l-cyan-300 rounded-full animate-spin mx-auto"></div>
+        <p className="text-cyan-200 font-light text-lg">Inicializando mapa conectado...</p>
+        <p className="text-slate-400 text-sm">Cargando nodos, vínculos y memoria del mapa</p>
       </div>
     </div>
   ),
 });
+
+const NAV_ITEMS = [
+  { label: 'Inicio', href: '/dashboard', icon: Home },
+  { label: 'Registro diario', href: '/daily-mapping', icon: NotebookText },
+  { label: 'Proyectos', href: '/dashboard?focus=projects', icon: Cuboid },
+  { label: 'Relaciones', href: '/dashboard?focus=relationships', icon: Link2 },
+  { label: 'Mapa 3D', href: '/tablero-3d', icon: Network, active: true },
+  { label: 'Historial', href: '/memoria-4d', icon: CalendarDays },
+  { label: 'Integraciones', href: '/projects-hub', icon: PlugZap },
+];
 
 export default function Tablero3DPage() {
   const router = useRouter();
@@ -37,99 +46,86 @@ export default function Tablero3DPage() {
   }, []);
 
   return (
-    <div className="relative h-screen w-full overflow-hidden bg-black">
-      {/* Header con controles */}
-      <div className="absolute top-0 left-0 right-0 z-50 p-4 bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
-        <div className="flex items-center justify-between max-w-7xl mx-auto pointer-events-auto">
-          <Button
-            variant="ghost"
+    <div className="relative h-screen w-full overflow-hidden bg-[#050c19] text-slate-100">
+      <aside className="absolute inset-y-0 left-0 z-[60] w-[76px] border-r md:w-[236px] border-cyan-200/10 bg-[#081629]/95 shadow-2xl shadow-cyan-950/40 backdrop-blur-xl">
+        <div className="flex h-full flex-col px-3 py-5 md:px-7 md:py-7">
+          <button
             onClick={() => router.push('/dashboard')}
-            className="bg-black/50 backdrop-blur-sm border border-cyan-500/30 hover:bg-cyan-500/20 text-cyan-400"
+            className="group flex flex-col items-center gap-3 text-left md:items-start md:gap-4"
+            aria-label="Volver al dashboard"
           >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Volver al Dashboard
-          </Button>
+            <div className="relative flex h-12 w-12 items-center md:h-16 md:w-16 justify-center rounded-full bg-cyan-400/10 shadow-[0_0_45px_rgba(34,211,238,0.25)]">
+              <div className="h-8 w-8 rounded-full md:h-10 md:w-10 border-4 border-cyan-300/80 bg-gradient-to-br from-cyan-300/40 via-blue-500/40 to-violet-500/50" />
+              <div className="absolute h-3 w-3 md:h-4 md:w-4 rounded-full bg-cyan-100 shadow-[0_0_22px_rgba(103,232,249,0.9)]" />
+            </div>
+            <div className="hidden md:block">
+              <p className="whitespace-nowrap text-[16px] font-semibold tracking-[0.1em] text-white">OBSERVADOR 4D</p>
+              <p className="mt-2 text-[9px] font-medium uppercase tracking-[0.28em] text-cyan-200/70">Ver más. Vivir mejor.</p>
+            </div>
+          </button>
 
-          <div className="flex items-center gap-3">
-            <Card className="bg-black/50 backdrop-blur-sm border-purple-500/30 px-4 py-2">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                <span className="text-sm text-slate-300 font-light">Vista 4D Activa</span>
-              </div>
-            </Card>
+          <nav className="mt-10 space-y-2 md:mt-14">
+            {NAV_ITEMS.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.label}
+                  onClick={() => router.push(item.href)}
+                  className={`relative flex w-full items-center justify-center gap-0 rounded-2xl px-3 py-3 text-left text-[15px] transition-all md:justify-start md:gap-4 md:px-4 ${
+                    item.active
+                      ? 'bg-blue-600/25 text-cyan-200 shadow-lg shadow-blue-950/40 before:absolute before:left-[-12px] md:before:left-[-28px] before:h-full before:w-1.5 before:rounded-r-full before:bg-cyan-300'
+                      : 'text-blue-100/75 hover:bg-white/5 hover:text-cyan-100'
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span className="hidden md:inline">{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+
+          <div className="mt-auto hidden pb-2 md:block">
+            <p className="text-[11px] font-medium uppercase tracking-[0.34em] text-blue-200/60">Todo está conectado</p>
+            <div className="mt-4 h-px w-10 bg-cyan-300" />
           </div>
         </div>
-      </div>
+      </aside>
 
-      {/* Controles de Zoom - Lado Derecho */}
-      <div className="absolute right-6 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleZoomIn}
-          className="w-12 h-12 bg-black/70 backdrop-blur-sm border-2 border-cyan-500/50 hover:bg-cyan-500/30 hover:border-cyan-400 text-cyan-400 rounded-xl shadow-lg shadow-cyan-500/20 transition-all"
-        >
-          <ZoomIn className="h-6 w-6" />
-        </Button>
-        
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleZoomOut}
-          className="w-12 h-12 bg-black/70 backdrop-blur-sm border-2 border-purple-500/50 hover:bg-purple-500/30 hover:border-purple-400 text-purple-400 rounded-xl shadow-lg shadow-purple-500/20 transition-all"
-        >
-          <ZoomOut className="h-6 w-6" />
-        </Button>
+      <main className="relative ml-[76px] h-full md:ml-[236px] overflow-hidden bg-[radial-gradient(circle_at_42%_34%,rgba(14,165,233,0.09),transparent_31%),radial-gradient(circle_at_70%_42%,rgba(124,58,237,0.08),transparent_34%),#030816]">
+        <div className="absolute right-4 top-1/2 z-50 flex -translate-y-1/2 flex-col gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleZoomIn}
+            className="h-10 w-10 rounded-xl border border-cyan-300/25 bg-slate-950/55 text-cyan-200 shadow-lg shadow-cyan-950/30 backdrop-blur hover:bg-cyan-400/15"
+            aria-label="Acercar mapa"
+          >
+            <ZoomIn className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleZoomOut}
+            className="h-10 w-10 rounded-xl border border-violet-300/25 bg-slate-950/55 text-violet-200 shadow-lg shadow-violet-950/30 backdrop-blur hover:bg-violet-400/15"
+            aria-label="Alejar mapa"
+          >
+            <ZoomOut className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleResetView}
+            className="h-10 w-10 rounded-xl border border-blue-300/25 bg-slate-950/55 text-blue-200 shadow-lg shadow-blue-950/30 backdrop-blur hover:bg-blue-400/15"
+            aria-label="Restablecer vista"
+          >
+            <RotateCcw className="h-4 w-4" />
+          </Button>
+        </div>
 
-        <div className="w-full h-px bg-gradient-to-r from-transparent via-slate-500/50 to-transparent my-1" />
-        
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleResetView}
-          className="w-12 h-12 bg-black/70 backdrop-blur-sm border-2 border-pink-500/50 hover:bg-pink-500/30 hover:border-pink-400 text-pink-400 rounded-xl shadow-lg shadow-pink-500/20 transition-all"
-        >
-          <RotateCcw className="h-5 w-5" />
-        </Button>
-      </div>
-
-      {/* Instrucciones Compactas */}
-      <div className="absolute bottom-6 left-6 z-50 max-w-sm pointer-events-none">
-        <Card className="bg-black/85 backdrop-blur-md border border-cyan-500/40 p-4 pointer-events-auto shadow-xl">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
-              <Info className="h-4 w-4 text-white" />
-            </div>
-            <div>
-              <p className="text-cyan-300 font-semibold text-sm">Controles 3D</p>
-              <p className="text-slate-500 text-xs">Tablero Dimensional</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="flex items-center gap-1.5 text-slate-300">
-              <span className="text-cyan-400">🔄</span>
-              <span>Arrastrar = Rotar</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-slate-300">
-              <span className="text-purple-400">🔍</span>
-              <span>Scroll = Zoom</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-slate-300">
-              <span className="text-pink-400">👆</span>
-              <span>Clic = Info nodo</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-slate-300">
-              <span className="text-green-400">↔️</span>
-              <span>Clic Der. = Pan</span>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* Escena 3D */}
-      <Suspense fallback={<div className="h-screen w-full bg-black" />}>
-        <Scene3D />
-      </Suspense>
+        <Suspense fallback={<div className="h-full w-full bg-[#061225]" />}>
+          <Scene3D />
+        </Suspense>
+      </main>
     </div>
   );
 }

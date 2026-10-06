@@ -7,6 +7,7 @@ import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Brain, Heart, Zap, Activity, Settings } from 'lucide-react';
+import { DataSourceNote, IndicatorClarity } from '@/components/ui/indicator-clarity';
 import {
   PieChart,
   Pie,
@@ -22,6 +23,8 @@ interface CoherenceData {
   emotionalCoherence: number;
   logicalCoherence: number;
   energeticCoherence: number;
+  source?: string;
+  message?: string;
 }
 
 export function CoherenceMeters() {
@@ -91,6 +94,13 @@ export function CoherenceMeters() {
     return 'Necesita atención';
   };
 
+  const hasRealMetrics = !['empty', 'insufficient_signals'].includes(coherence.source || '') && (
+    coherence.overallCoherence > 0 ||
+    coherence.emotionalCoherence > 0 ||
+    coherence.logicalCoherence > 0 ||
+    coherence.energeticCoherence > 0
+  );
+
   const radialData = [
     {
       name: 'Emocional',
@@ -145,18 +155,55 @@ export function CoherenceMeters() {
       </CardHeader>
       
       <CardContent className="space-y-6">
+        <IndicatorClarity />
+
+        <DataSourceNote title={isEditing ? 'Fuente: borrador manual' : hasRealMetrics ? 'Fuente: cálculo con registros suficientes' : 'Fuente: sin datos suficientes'} tone={hasRealMetrics ? 'purple' : 'cyan'}>
+          {isEditing
+            ? 'Los valores que ajustes aquí son una captura manual hasta guardar. No equivalen a un diagnóstico calculado.'
+            : hasRealMetrics
+              ? 'La coherencia se presenta como cálculo derivado de señales disponibles. Úsala como lectura de contexto, no como medición absoluta.'
+              : 'Faltan proyecto, relación o registro diario. Por eso se ocultan porcentajes, gráficos y clasificación.'}
+        </DataSourceNote>
+
+        {!hasRealMetrics && !isEditing && (
+          <div className="rounded-2xl border border-purple-500/20 bg-purple-500/5 p-5 text-center">
+            <p className="text-sm font-semibold text-purple-200">Aún no hay coherencia calculada con tus registros</p>
+            <p className="mt-2 text-sm leading-relaxed text-slate-400">
+              Estos indicadores se vuelven útiles cuando hay proyecto, relación y registro diario. Por ahora no se muestran porcentajes de respaldo ni métricas históricas sin contexto suficiente.
+            </p>
+            <Button
+              onClick={() => setIsEditing(true)}
+              className="mt-4 bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500"
+            >
+              Registrar estado inicial
+            </Button>
+          </div>
+        )}
+
+        {(hasRealMetrics || isEditing) && (
+          <>
         {/* Coherencia General */}
-        <div className="text-center">
-          <div className="text-6xl font-bold mb-2" style={{ color: getCoherenceColor(coherence.overallCoherence) }}>
-            {Math.round(coherence.overallCoherence)}%
+        {isEditing && !hasRealMetrics ? (
+          <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-5 text-center">
+            <p className="text-sm font-semibold text-cyan-100">Borrador manual</p>
+            <p className="mt-2 text-sm leading-relaxed text-slate-400">
+              Ajusta los tres componentes antes de guardar. Mientras sea borrador no se emite porcentaje general ni clasificación como “Necesita atención”.
+            </p>
           </div>
-          <div className="text-lg text-slate-300 mb-1">Coherencia General</div>
-          <div className="text-sm" style={{ color: getCoherenceColor(coherence.overallCoherence) }}>
-            {getCoherenceStatus(coherence.overallCoherence)}
+        ) : (
+          <div className="text-center">
+            <div className="text-6xl font-bold mb-2" style={{ color: getCoherenceColor(coherence.overallCoherence) }}>
+              {Math.round(coherence.overallCoherence)}%
+            </div>
+            <div className="text-lg text-slate-300 mb-1">Coherencia General</div>
+            <div className="text-sm" style={{ color: getCoherenceColor(coherence.overallCoherence) }}>
+              {getCoherenceStatus(coherence.overallCoherence)}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Gráfico Radial */}
+        {(!isEditing || hasRealMetrics) && (
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <RadialBarChart cx="50%" cy="50%" innerRadius="30%" outerRadius="80%" data={radialData}>
@@ -173,6 +220,7 @@ export function CoherenceMeters() {
             </RadialBarChart>
           </ResponsiveContainer>
         </div>
+        )}
 
         {/* Métricas Detalladas */}
         <div className="grid gap-4">
@@ -257,6 +305,8 @@ export function CoherenceMeters() {
             )}
           </div>
         </div>
+          </>
+        )}
 
         {/* Botones de Acción */}
         {isEditing && (

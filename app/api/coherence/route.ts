@@ -15,33 +15,41 @@ export async function GET(request: NextRequest) {
 
     const userId = session.user.id;
 
-    // Obtener las métricas más recientes
-    const latestMetrics = await prisma.userMetrics.findFirst({
-      where: { userId },
-      orderBy: { date: 'desc' }
-    });
+    const [projectCount, relationshipCount, entryCount, latestMetrics] = await Promise.all([
+      prisma.project.count({ where: { userId } }),
+      prisma.relationship.count({ where: { userId } }),
+      prisma.dailyEntry.count({ where: { userId } }),
+      prisma.userMetrics.findFirst({
+        where: { userId },
+        orderBy: { date: 'desc' }
+      })
+    ]);
 
-    if (!latestMetrics) {
-      // Si no hay métricas, crear unas por defecto
-      const defaultMetrics = await prisma.userMetrics.create({
-        data: {
-          userId,
-          overallCoherence: 65.0,
-          emotionalCoherence: 70.0,
-          logicalCoherence: 60.0,
-          energeticCoherence: 65.0,
-          synchronicityCount: 3,
-          synchronicityScore: 75.0,
-          manifestationRate: 55.0,
-          projectCompletion: 40.0,
-          relationshipHealth: 80.0,
-          weeklyTrend: 'improving'
-        }
+    const hasMinimumSignals = projectCount > 0 && relationshipCount > 0 && entryCount > 0;
+
+    if (!latestMetrics || !hasMinimumSignals) {
+      return NextResponse.json({
+        overallCoherence: 0,
+        emotionalCoherence: 0,
+        logicalCoherence: 0,
+        energeticCoherence: 0,
+        synchronicityCount: 0,
+        synchronicityScore: 0,
+        manifestationRate: 0,
+        projectCompletion: 0,
+        relationshipHealth: 0,
+        weeklyTrend: 'empty',
+        source: 'insufficient_signals',
+        signalCounts: { projects: projectCount, relationships: relationshipCount, entries: entryCount },
+        message: 'Sin datos suficientes para calcular coherencia'
       });
-      return NextResponse.json(defaultMetrics);
     }
 
-    return NextResponse.json(latestMetrics);
+    return NextResponse.json({
+      ...latestMetrics,
+      source: 'user_metrics',
+      signalCounts: { projects: projectCount, relationships: relationshipCount, entries: entryCount }
+    });
   } catch (error) {
     console.error('Error obteniendo métricas de coherencia:', error);
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });

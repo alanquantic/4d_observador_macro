@@ -6,6 +6,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
+import { DataSourceNote, IndicatorClarity } from '@/components/ui/indicator-clarity';
 import { 
   Zap, 
   TrendingUp, 
@@ -32,10 +33,32 @@ interface EnergyFlow {
   category: string;
   value: number;
   label: string;
+  rawCategory?: string;
+  rawValue?: number;
+  contributors?: Array<{
+    label: string;
+    kind: string;
+    baseValue: number;
+    factor: number;
+    factorLabel: string;
+    rawValue: number;
+    formula: string;
+  }>;
 }
 
 interface EnergyData {
   flows: EnergyFlow[];
+  source?: string;
+  signalCounts?: { projects: number; relationships: number };
+  calculation?: {
+    formula: string;
+    totalRawEnergy: number;
+    inputs: {
+      projects: string;
+      relationships: string;
+    };
+    exchangeFactors: Record<string, number>;
+  };
   detailed: {
     inputs: Array<{
       source: string;
@@ -114,6 +137,16 @@ export function EnergyFlows() {
     }
   };
 
+  const getBalanceLabel = (balance: string) => {
+    const labels: Record<string, string> = {
+      recibiendo: 'Recibiendo',
+      dando: 'Dando',
+      equilibrado: 'Equilibrado',
+      'sin datos': 'Sin datos',
+    };
+    return labels[balance] || balance;
+  };
+
   const getBalanceIcon = (balance: string) => {
     switch (balance) {
       case 'recibiendo':
@@ -143,6 +176,8 @@ export function EnergyFlows() {
     fill: ENERGY_COLORS[index % ENERGY_COLORS.length]
   }));
 
+  const hasEnergySignals = energyData.source !== 'insufficient_signals' && energyData.flows.length > 0;
+
   const barData = energyData.flows.slice(0, 6).map((flow, index) => ({
     category: flow.label.replace(/[^\w\s]/gi, ''),
     input: energyData.detailed.inputs
@@ -166,6 +201,29 @@ export function EnergyFlows() {
           <div className="text-center py-8">
             <div className="animate-pulse text-slate-400">Analizando flujos energéticos...</div>
           </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!hasEnergySignals) {
+    return (
+      <Card className="bg-gradient-to-br from-slate-900/90 to-yellow-900/30 border-yellow-500/30 backdrop-blur-sm">
+        <CardHeader>
+          <CardTitle className="text-2xl font-bold bg-gradient-to-r from-yellow-400 to-orange-400 bg-clip-text text-transparent flex items-center gap-3">
+            <Zap className="h-8 w-8 text-yellow-400" />
+            Flujos de Energía
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-8 text-center">
+          <Zap className="h-12 w-12 mx-auto text-slate-500 mb-4" />
+          <p className="font-semibold text-slate-200">Sin datos suficientes para calcular flujos</p>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-slate-500">
+            Los porcentajes aparecerán cuando existan proyectos activos o relaciones registradas. Energía significa atención o esfuerzo registrado; no es una medición física.
+          </p>
+          <p className="mt-3 text-xs text-slate-600">
+            Fuente actual: {energyData.signalCounts?.projects || 0} proyectos · {energyData.signalCounts?.relationships || 0} relaciones
+          </p>
         </CardContent>
       </Card>
     );
@@ -203,12 +261,54 @@ export function EnergyFlows() {
         <div className="flex items-center justify-center gap-2 p-3 bg-slate-800/50 rounded-lg">
           {getBalanceIcon(energyData.summary.energyBalance)}
           <span className={`font-semibold ${getBalanceColor(energyData.summary.energyBalance)}`}>
-            Balance: {energyData.summary.energyBalance.charAt(0).toUpperCase() + energyData.summary.energyBalance.slice(1)}
+            Balance: {getBalanceLabel(energyData.summary.energyBalance)}
           </span>
         </div>
       </CardHeader>
       
       <CardContent className="space-y-6">
+        <IndicatorClarity />
+
+        <DataSourceNote title={isEditing ? 'Fuente: distribución manual' : 'Fuente: cálculo desde proyectos y relaciones'} tone="yellow">
+          {isEditing
+            ? 'Estás probando una distribución manual. Los porcentajes no son diagnóstico hasta aplicar cambios y conservar su fuente.'
+            : 'Los flujos reparten la energía registrada en proyectos y relaciones. Cada porcentaje debe poder rastrearse al valor bruto y a su fórmula.'}
+        </DataSourceNote>
+
+        <div className="rounded-2xl border border-yellow-500/20 bg-yellow-500/5 p-4">
+          <p className="text-sm font-semibold text-yellow-100">Fuente y cálculo</p>
+          <p className="mt-2 text-xs leading-relaxed text-slate-400">
+            Fuente actual: {energyData.signalCounts?.projects || 0} proyectos activos · {energyData.signalCounts?.relationships || 0} relaciones. Fórmula: cada porcentaje sale del valor bruto de su categoría dividido entre la suma total ({energyData.calculation?.totalRawEnergy ?? 0}).
+          </p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {energyData.flows.map(flow => (
+              <div key={flow.category} className="rounded-lg bg-slate-950/50 px-3 py-2 text-xs text-slate-300">
+                <div>
+                  <span className="font-medium text-slate-100">{flow.label}</span>: {flow.rawValue ?? '—'} / {energyData.calculation?.totalRawEnergy ?? '—'} = {flow.value}%
+                </div>
+                {flow.contributors && flow.contributors.length > 0 && (
+                  <div className="mt-2 space-y-1 border-t border-slate-800 pt-2 text-slate-400">
+                    {flow.contributors.map((item, itemIndex) => (
+                      <div key={`${flow.category}-${itemIndex}`}>
+                        {item.kind} · {item.label}: {item.kind === 'Relación' ? 'calidad' : 'energía'} {item.baseValue} × factor {item.factorLabel} {item.factor} = {item.rawValue}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {isEditing && (
+          <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-4">
+            <p className="text-sm font-semibold text-cyan-100">Borrador manual</p>
+            <p className="mt-1 text-xs leading-relaxed text-slate-400">
+              Estás ajustando una distribución manual. Estos cambios no son un diagnóstico ni una clasificación hasta que presiones “Aplicar Cambios”.
+            </p>
+          </div>
+        )}
+
         {/* Distribución Principal */}
         <div>
           <h3 className="text-lg font-semibold text-slate-200 mb-4 text-center">
@@ -355,7 +455,7 @@ export function EnergyFlows() {
           
           <div className="text-center p-4 bg-slate-800/30 rounded-lg">
             <div className={`text-lg font-bold ${getBalanceColor(energyData.summary.energyBalance)}`}>
-              {energyData.summary.energyBalance.charAt(0).toUpperCase() + energyData.summary.energyBalance.slice(1)}
+              {getBalanceLabel(energyData.summary.energyBalance)}
             </div>
             <div className="text-sm text-slate-400">Estado</div>
           </div>
